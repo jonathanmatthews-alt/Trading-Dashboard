@@ -1,0 +1,81 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* TIM DASH dark/neon palette — dark navy + cyan + orange */
+    --background: 222 47% 6%;
+    --foreground: 210 40% 96%;
+
+    --card: 222 44% 9%;
+    --card-foreground: 210 40% 96%;
+
+    --popover: 222 47% 6%;
+    --popover-foreground: 210 40% 96%;
+
+    --primary: 187 96% 53%;
+    --primary-foreground: 222 47% 6%;
+
+    --secondary: 222 32% 16%;
+    --secondary-foreground: 210 40% 96%;
+
+    --muted: 222 32% 14%;
+    --muted-foreground: 215 20% 65%;
+
+    --accent: 22 96% 56%;
+    --accent-foreground: 222 47% 6%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 96%;
+
+    --border: 222 32% 18%;
+    --input: 222 32% 18%;
+    --ring: 187 96% 53%;
+
+    --cyan-neon: 187 96% 53%;
+    --orange-neon: 22 96% 56%;
+    --gain: 142 76% 56%;
+    --loss: 0 84% 60%;
+    --warn: 40 96% 56%;
+
+    --radius: 0.375rem;
+
+    --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto;
+    --font-mono: ui-monospace, "JetBrains Mono", "Fira Code", Menlo, monospace;
+    --font-display: ui-monospace, "JetBrains Mono", "Fira Code", Menlo, monospace;
+  }
+
+  html, body {
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: var(--font-sans);
+  }
+
+  /* Scanline grid background reminiscent of TIM DASH */
+  body {
+    background-image:
+      linear-gradient(hsl(var(--border) / 0.15) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--border) / 0.15) 1px, transparent 1px);
+    background-size: 40px 40px;
+    background-attachment: fixed;
+  }
+
+  * { border-color: hsl(var(--border)); }
+}
+
+@layer utilities {
+  .text-display { font-family: var(--font-display); letter-spacing: 0.04em; text-transform: uppercase; }
+  .text-mono { font-family: var(--font-mono); }
+  .text-gain { color: hsl(var(--gain)); }
+  .text-loss { color: hsl(var(--loss)); }
+  .text-warn { color: hsl(var(--warn)); }
+  .text-neon { color: hsl(var(--cyan-neon)); }
+  .text-orange-neon { color: hsl(var(--orange-neon)); }
+  .bg-grid {
+    background-image:
+      linear-gradient(hsl(var(--border) / 0.4) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--border) / 0.4) 1px, transparent 1px);
+    background-size: 20px 20px;
+  }
+}
