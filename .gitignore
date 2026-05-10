@@ -4,5 +4,7 @@ out
 .env*.local
 *.db
 *.db-journal
+*.db-shm
+*.db-wal
 .DS_Store
 .vercel
