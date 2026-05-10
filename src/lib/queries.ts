@@ -171,6 +171,11 @@ export function metricsForRow(row: TradeRow) {
   return computeTradeMetrics(row.event, row.executions, row.instrument);
 }
 
+export async function listAllTransitions() {
+  const rows = await db.select().from(schema.accountTransitions);
+  return rows.sort((a, b) => b.id - a.id);
+}
+
 /* ─── Account state for Risk dashboard ─── */
 export async function listAccountStates(todayIso: string): Promise<AccountState[]> {
   const accountsMeta = await listAccountsWithMeta();

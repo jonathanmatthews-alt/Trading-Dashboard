@@ -14,6 +14,16 @@ import type { Firm, Program } from "@/db/schema";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn, formatCurrency, formatPercent } from "@/lib/utils";
+import { AccountStageCell } from "@/components/account-stage-cell";
+
+type Transition = {
+  id: number;
+  accountId: number;
+  fromStage: string | null;
+  toStage: string;
+  occurredAt: string;
+  reason: string | null;
+};
 
 type Row = {
   state: AccountState;
@@ -25,21 +35,21 @@ type Props = {
   states: AccountState[];
   firms: Firm[];
   programs: Program[];
+  transitions: Transition[];
 };
 
 const ALL_EXTRA_COLUMNS = [
-  { id: "stage", label: "Stage" },
   { id: "dd", label: "DD" },
   { id: "days", label: "Days" },
   { id: "consistency", label: "Consistency" },
 ] as const;
 type ExtraColId = (typeof ALL_EXTRA_COLUMNS)[number]["id"];
 
-export function RiskTable({ states, firms, programs }: Props) {
+export function RiskTable({ states, firms, programs, transitions }: Props) {
   const [sorting, setSorting] = useState<SortingState>([
     { id: "danger", desc: false },
   ]);
-  const [extraCols, setExtraCols] = useState<Set<ExtraColId>>(new Set(["stage"]));
+  const [extraCols, setExtraCols] = useState<Set<ExtraColId>>(new Set());
 
   const firmById = useMemo(
     () => new Map(firms.map((f) => [f.id, f] as const)),
@@ -122,9 +132,7 @@ export function RiskTable({ states, firms, programs }: Props) {
               <th className="text-right px-3 py-2 font-normal">pnl today</th>
               <th className="text-left px-3 py-2 font-normal">target / bust</th>
               <th className="text-right px-3 py-2 font-normal">payout</th>
-              {extraCols.has("stage") && (
-                <th className="text-left px-3 py-2 font-normal">stage</th>
-              )}
+              <th className="text-left px-3 py-2 font-normal">stage</th>
               {extraCols.has("dd") && (
                 <th className="text-right px-3 py-2 font-normal">dd</th>
               )}
@@ -144,6 +152,7 @@ export function RiskTable({ states, firms, programs }: Props) {
                 firmName={firmName}
                 rows={firmRows}
                 extraCols={extraCols}
+                transitions={transitions}
               />
             ))}
             {grouped.length === 0 && (
@@ -164,10 +173,12 @@ function FirmGroup({
   firmName,
   rows,
   extraCols,
+  transitions,
 }: {
   firmName: string;
   rows: Row[];
   extraCols: Set<ExtraColId>;
+  transitions: Transition[];
 }) {
   return (
     <>
@@ -185,6 +196,9 @@ function FirmGroup({
           state={state}
           programName={programName}
           extraCols={extraCols}
+          transitions={transitions.filter(
+            (t) => t.accountId === state.account.id,
+          )}
         />
       ))}
     </>
@@ -195,10 +209,12 @@ function RiskRow({
   state,
   programName,
   extraCols,
+  transitions,
 }: {
   state: AccountState;
   programName: string;
   extraCols: Set<ExtraColId>;
+  transitions: Transition[];
 }) {
   const danger = state.alerts.some((a) => a.severity === "danger");
   const warn = state.alerts.some((a) => a.severity === "warn");
@@ -272,17 +288,13 @@ function RiskRow({
           ? `${state.rule.payoutCadenceDays}d cycle`
           : "—"}
       </td>
-      {extraCols.has("stage") && (
-        <td className="px-3 py-2">
-          {state.account.currentStage ? (
-            <Badge variant="orange">
-              {state.rule?.stageDisplayLabel ?? state.account.currentStage}
-            </Badge>
-          ) : (
-            <Badge variant="muted">PA</Badge>
-          )}
-        </td>
-      )}
+      <td className="px-3 py-2">
+        {state.account.currentStage ? (
+          <AccountStageCell state={state} transitions={transitions} />
+        ) : (
+          <Badge variant="muted">PA</Badge>
+        )}
+      </td>
       {extraCols.has("dd") && (
         <td className="px-3 py-2 text-right text-mono text-[11px] text-muted-foreground">
           {state.rule?.drawdownType

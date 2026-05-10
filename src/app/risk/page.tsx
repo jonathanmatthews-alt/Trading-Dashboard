@@ -3,6 +3,7 @@ import { PageHeader } from "@/components/page-header";
 import { RiskTable } from "@/components/risk-table";
 import {
   listAccountStates,
+  listAllTransitions,
   listFirms,
   listPrograms,
 } from "@/lib/queries";
@@ -11,10 +12,11 @@ export const dynamic = "force-dynamic";
 
 export default async function RiskPage() {
   const today = format(new Date(), "yyyy-MM-dd");
-  const [states, firms, programs] = await Promise.all([
+  const [states, firms, programs, transitions] = await Promise.all([
     listAccountStates(today),
     listFirms(),
     listPrograms(),
+    listAllTransitions(),
   ]);
 
   const dangerCount = states.filter((s) =>
@@ -32,7 +34,12 @@ export default async function RiskPage() {
             : "ALL ACCOUNTS NOMINAL"
         }
       />
-      <RiskTable states={states} firms={firms} programs={programs} />
+      <RiskTable
+        states={states}
+        firms={firms}
+        programs={programs}
+        transitions={transitions}
+      />
     </div>
   );
 }
