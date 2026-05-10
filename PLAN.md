@@ -1,7 +1,7 @@
 # Trading Dashboard — Planning Document
 
-Status: **PLANNING IN PROGRESS** (paused mid-batch). Resume by reading
-"Resume here" at the bottom.
+Status: **PLANNING COMPLETE.** Ready to exit plan mode and begin
+implementation. Final stack and full v1 spec below.
 
 Visual reference: `/root/.claude/uploads/1366b4d4-7a26-400d-97d3-585b4926b9e9/1abe4dc7-TradingDashbaord_Pics.docx`
 (image1 = Trade Log with sidebar, image2 = Patterns detail page,
@@ -10,221 +10,297 @@ image5 = calendar, image6 = command-center HUD).
 
 ---
 
-## 1. Foundation (locked)
+## 1. Foundation
 
 - **Platform**: local web app, run on your machine, opened in browser.
-- **Phone access**: dropped for v1. Add later.
-- **Data entry**: manual form **and** CSV/broker import (both supported).
-- **Instruments v1**: Futures (ES, MES, NQ, MNQ, RTY, M2K, YM, MYM, CL,
-  MCL, GC, MGC, etc.) + Options. **Options DEFERRED to v2**, so v1 is
-  futures-only. Pre-loaded CME/CBOT futures library (tick size, point
-  value, session hours).
-- **Trade unit**: one trade = one round-trip position (entry → full exit).
-  Scale-ins/scale-outs collapse into a single trade row.
-- **Visual**: TIM DASH 2026 (image1/2/4) as the primary skeleton —
-  dark navy background, cyan + orange neon accents, monospace section
-  headers, left sidebar nav, card-based content.
-- **Tech stack**: deferred. I'll propose at plan-exit time. Likely
-  Next.js + SQLite + Drizzle + Recharts/ECharts, but not locked.
+- **Phone access**: dropped for v1.
+- **Data entry**: manual form **and** generic CSV import (column-mapper
+  with named importer profiles, works for any broker).
+- **Instruments v1**: futures only (ES, MES, NQ, MNQ, RTY, M2K, YM,
+  MYM, CL, MCL, GC, MGC, etc.). Pre-loaded CME/CBOT specs library
+  (tick size, point value, session hours). **Options deferred to v2.**
+- **Trade unit**: one trade = one round-trip position (entry → full
+  exit). Scale-ins/scale-outs collapse into a single trade row.
+- **Visual**: TIM DASH 2026 (image1/2/4) — dark navy + cyan/orange
+  neon, monospace headers, left sidebar nav, card-based content.
 - **Scope**: just you, just on your machine.
 
-## 2. Information Architecture (locked)
+## 2. Stack (locked)
 
-- **One workspace**, not three.
-- Shared across all account-types: Setups Library, Tendencies, Psychology,
-  Mistakes, Goals, To-Do, Journal, Daily Log, Watchlist.
+- **Framework**: Next.js 15 (App Router) + TypeScript.
+- **Styling**: Tailwind v4 + shadcn/ui (themed dark/neon for the
+  TIM DASH look) + Lucide icons.
+- **DB**: SQLite (file in repo) + Drizzle ORM.
+- **Charts**: Recharts (equity curves, drawdown, distributions,
+  attribution bars, sparklines). Custom component for the calendar.
+- **Tables**: TanStack Table for the dense Risk dashboard.
+- **Validation**: zod on every form / API boundary.
+- **Dev**: `pnpm dev`, single Node process. No worker.
+
+## 3. Information Architecture
+
+- One workspace.
+- **Shared** across all account-types: Setups Library, Tendencies,
+  Psychology, Mistakes, Goals, To-Do, Journal, Daily Log.
 - **Separate per account-type**: PnL tracking — PA has its own
   Trades / Calendar / Performance views; Prop has its own.
 - **Raen** is treated as a prop firm under the Prop section.
-- Reference shape of prop rules: lucidtrading.com, tradeify.co,
-  apextraderfunding.com.
 
-## 3. Sidebar (locked v3)
+## 4. Sidebar (final)
 
 ```
 Daily       Today
-            Watchlist
-            Journal               (per-trade narrative)
+            Journal               (per-trade narrative reader)
 
 History     Trades
             Calendar
             Performance
             Daily Log             (per-day reflection)
 
-Reference   Setups Library        (also holds Playbook content; absorbed Patterns)
+Reference   Setups Library        (absorbed Playbook + Patterns)
             Tendencies            (self-tagged behavioural biases)
             Psychology            (cognitive bias reference library)
             Mistakes              (catalogue with structured tags)
             Goals                 (process compliance %)
-            To-Do                 (Today checklist + Backlog tabs)
+            To-Do                 (Today checklist + Backlog)
 
 Account     Risk / Account State  (real-time per-firm rule status)
 
-Macro       Economic Calendar     (news/event overlay)
+Macro       Economic Calendar     (auto-pulled news feed + manual)
 ```
 
-Dropped: No Man's Land, Cloude Tips, Patterns (merged into Setups Library),
-Cheatsheets (folded into Today's pre-market section).
+Dropped: No Man's Land · Cloude Tips · Patterns (merged) ·
+Cheatsheets (folded into Today) · **Watchlist** (folded into Today's
+pre-market section).
 
-## 4. Prop Modeling (locked)
+## 5. Data Model
 
-- **Firms in v1**: Take Profit Trader, Apex Trader Funding, Tradeify,
-  Lucid Trading, Raen.
-- **Scale**: 20+ concurrent accounts. Build for scale from day 1
-  (grid/table views, bulk ops).
-- **Stages**: generic stage TYPES under the hood + per-firm display
-  labels. Types: `eval`, `sim_funded`, `live_funded`, `payout_active`,
-  `blown`, `archived`.
-- **Rule engine** must cover ALL of:
-  - Core: profit target, drawdown variants (static / trailing intraday
-    / trailing EOD with locking), daily loss limit.
-  - Compliance: min trading days, consistency % (best-day cap),
-    contract scaling per stage, allowed instruments, news/holiday
-    restrictions.
-  - Payout: cadence, minimums, projected next-payout-date.
-  - Costs: activation fees, monthly resets, payout splits, buffers
-    retained, net realized PnL.
-- **Rule templates**: yes — versioned per firm/program. Per-account
-  overrides allowed.
-- **Lifecycle**: track state + full transition history per account;
-  resets/replacements create NEW account records; bulk operations
-  for managing many accounts. (Cohorts not in v1.)
-- **Stage transitions**: manual confirm. Dashboard suggests "PROMOTE"
-  when criteria met; user clicks to advance.
-
-## 5. Trade Data Model (locked)
+### Trade
 
 - **`TradeEvent`** (one trade idea):
   instrument, direction, entry_time, exit_time, entry_avg, exit_avg,
   MAE_points, MFE_points, **initial_stop (required)**, setup_id,
   mistake_tag_ids[], tendency_tag_ids[], note.
 - **`TradeExecution`** (per-account fan-out):
-  trade_event_id, account_id, contracts. PnL/MAE/MFE in $ are derived
+  trade_event_id, account_id, contracts. PnL/MAE/MFE in $ derived
   by default; per-execution overrides allowed when fills diverge.
-- **Copy-trading**: ONE trade idea fans across N accounts simultaneously.
-- **MAE / MFE units**: stored in **points**; $-conversion via instrument
-  point value; R-multiple derived from initial_stop.
-- **Timestamps stored**: entry_time + exit_time only (idea time and
-  MAE/MFE times not tracked).
-- **PnLDD**: signed `PnL / MFE`, computed for ALL trades (winners and
-  losers). Both per-trade and aggregate (avg/sum across a date range).
+- **Copy-trading**: ONE TradeEvent fans across N TradeExecutions
+  simultaneously.
+- **MAE / MFE**: stored in **points**; $ via instrument point value;
+  R-multiple from initial_stop.
+- **Timestamps stored**: entry_time + exit_time only.
+- **PnLDD**: signed `PnL / MFE`, computed for ALL trades. Both
+  per-trade and aggregate.
+
+### Accounts
+
 - **PA accounts**: multiple personal accounts (taxable, IRA, futures,
-  options) each with own balance. NO rules engine on PA side.
-- **Trade-entry UX**: two-step.
-  1. Fast inline log (instrument, direction, entry, exit, MAE, MFE,
-     accounts fanned to).
-  2. End-of-day review queue prompts for tags / notes / screenshots
-     on each unenriched trade.
+  etc.) each with own balance. **NO rules engine on PA side.**
+- **Prop accounts**: under firms `Take Profit Trader, Apex, Tradeify,
+  Lucid, Raen` (5 firms). 20+ concurrent. Build for scale.
+- `Firm` → `Program` (e.g. "Apex 100K Eval") → `RuleTemplate`
+  (versioned) → `Account`. Per-account overrides allowed on rules.
+- `Account.state`: `eval` | `sim_funded` | `live_funded` |
+  `payout_active` | `blown` | `archived`.
+- Generic stage TYPES + per-firm display labels.
+- Resets/replacements create NEW account records (preserves
+  blown-rate stats over time).
+- Bulk operations supported.
+- Stage transitions: **manual confirm** — dashboard suggests
+  "PROMOTE" when criteria met; user clicks to advance.
+- Full transition history per account.
 
-## 6. Today Page (locked)
+### Rule engine
 
-- **Hero row, 4 cards** (in this order):
-  1. PnL today (all accounts, PA / Prop split).
-  2. Trades + win rate + avg R today.
-  3. Distance-to-bust on the most-at-risk account.
-  4. Process compliance today vs Goals checklist.
-- **Section order**:
-  Pre-market gameplan → Hero → 1-line takeaway → Today's trades list
+- **Closed-trades only** — account state recomputes per logged trade.
+  No intra-trade live equity. Distance-to-bust = realized PnL only.
+- Rules covered:
+  - **Core**: profit target; drawdown variants (static / trailing
+    intraday / trailing EOD with locking); daily loss limit.
+  - **Compliance**: min trading days; consistency % (best-day cap);
+    contract scaling per stage; allowed instruments; news/holiday
+    restrictions.
+  - **Payout**: cadence; minimums; projected next-payout-date.
+  - **Costs**: activation fees; monthly resets; payout splits;
+    buffers retained; net realized PnL.
+
+### Catalogues (seed-shipped, select-only on trade entry)
+
+- ~10 common futures setups (Breakout Trend, Failed Test, Opening
+  Drive, Fade VWAP, IB Break, OR Break, etc.)
+- ~12 common mistakes (moved stop, oversized, chased, traded news,
+  broke rules, didn't honor plan, etc.)
+- ~8 common tendencies (revenge-trade, FOMO, anchor,
+  size-up-when-green, etc.)
+- ~10 cognitive biases.
+
+User edits/deletes/adds. Trade-entry tag pickers are
+**select-only** — no quick-add — so catalogues stay curated.
+
+## 6. Tab Specs
+
+### Today (locked)
+
+- Hero row, 4 cards: PnL today (PA/Prop split) · Trades + WR + avg R ·
+  Distance-to-bust on most-at-risk account · Process compliance.
+- Section order: **Pre-market gameplan** (absorbed Cheatsheets +
+  Watchlist content: rituals, key levels, expected setups, news,
+  position-size calc) → Hero → 1-line takeaway → Today's trades list
   (image4 style) → End-of-day review queue → Process compliance.
-- **Default scope**: aggregate across all accounts; PA/Prop toggle at
-  top. Per-account drill-down lives in the Risk tab.
-- Pre-market section absorbs the dropped "Cheatsheets" content
-  (rituals, key levels, position-size calc).
+- Default scope: aggregate; PA/Prop toggle.
+- Per-account drill-down lives in Risk tab.
 
-## 7. Display Tabs (locked)
+### Trades (locked)
 
-- **Trades page**: comprehensive default columns — date, instrument,
-  direction, entry, exit, contracts (or "across N accts"), $PnL, R,
-  MAE, MFE, PnLDD, setup, mistakes, accounts-fanned-to. (User-
-  configurable column views can be a v2 addition.)
-- **Calendar page** (image5 reference): each daily cell shows
-  aggregate PnL across all accounts + an intraday equity sparkline.
-  Click a day for per-account/per-trade breakdown. Default view is
-  monthly grid.
-- **Performance page** widgets in v1:
-  - Equity curve over chosen date range, PA and Prop as separate
-    lines (toggleable), drawdown shaded underneath.
-  - Edge-attribution panel: PnL by setup / instrument / day-of-week /
-    hour-of-day / mistake-tag / tendency-tag (sortable bar charts).
-  - Distribution histograms: MAE (R), MFE (R), PnLDD.
-  - NOT in v1: streaks, max DD vs current DD, expectancy, profit
-    factor (deferred to v2).
-- **Watchlist**: format deferred. Re-decide next session.
+- Default columns: date · instrument · direction · entry · exit ·
+  contracts (or "across N accts") · $PnL · R · MAE · MFE · PnLDD ·
+  setup · mistakes · accounts-fanned-to.
+- Row click → **right-side drawer** with full detail (per-account
+  execution breakdown, screenshots, journal note, bars).
+- Filters v1: **Core** (date / account-type / firm / account /
+  instrument) + **Outcome** (win/loss / R-bucket / PnLDD-bucket).
+  Tag and time/context filters deferred to v2.
 
-## 8. Reference Tabs — Settled Definitions
+### Calendar (locked)
 
-- **Setups Library**: master catalogue of named setups + their plans
-  (definition, criteria, indicators, gotchas, linked trades, stats).
-  Replaces both "Setups" and "Playbook" and "Patterns" from TIM DASH.
-- **Tendencies**: your own behavioural biases / habits, self-tagged
-  (e.g. "revenge-trade after 2 losses", "size up when green").
-  Trades can be tagged with tendencies.
-- **Psychology**: reference library of cognitive biases &
-  countermeasures (revenge trading, FOMO, anchoring, loss aversion,
-  etc.). Read-only-ish reference. Distinct from Mistakes (per-trade)
-  and Tendencies (your specific habits).
-- **Mistakes**: catalogue of mistake categories ("moved stop",
-  "oversized", "chased", "broke rules", "didn't honor plan"). Each
-  trade can be tagged with 0-N. Dashboard shows $ cost per mistake
-  type, frequency, and PnL correlation.
-- **Goals**: process goals only (rules to follow, e.g. "no trade past
-  11:30 ET", "max 3 trades per session"). Tracked daily as compliance
-  %. Outcome/PnL goals NOT in scope.
-- **To-Do**: two tabs — "Today" daily-recurring checklist (resets
-  each session, streak tracker) + "Backlog" one-off dashboard
-  development tasks.
-- **Journal** (per-trade) and **Daily Log** (per-day) are separate.
+- Image5-style monthly grid.
+- Each cell: aggregate PnL across all accounts + intraday equity
+  sparkline.
+- Day click → right-side drawer: header · intraday chart (full-size)
+  · trades list · per-account table · link to that day's Daily Log.
+
+### Performance (locked)
+
+- Date range toolbar: 7D / 30D / 90D / YTD / 1Y / All + custom
+  picker. Default 30D.
+- Widgets v1:
+  1. Equity curve (PA / Prop separate lines, drawdown shaded).
+  2. Edge-attribution bars: PnL by setup / instrument / DoW / HoD /
+     mistake-tag / tendency-tag.
+  3. Distribution histograms: MAE (R), MFE (R), PnLDD.
+- Deferred to v2: streaks, max DD vs current DD, expectancy,
+  profit factor.
+
+### Risk / Account State (locked)
+
+- **Spreadsheet-style table.** Sortable, dense. Scales to 20+ rows.
+- Default columns: identity (firm + program + #) · balance · PnL
+  today · target/bust progress bars · payout countdown · projected
+  payout amount.
+- Toggleable additional columns: stage badge · DD type/value ·
+  days traded vs min · consistency % · days-in-stage · last-payout-
+  date.
+- Row click → drawer with full account detail (rules, transition
+  history, all trades on this account, projected payout schedule).
+- Grouping: **by firm** with section headers; within each firm,
+  sort by stage then danger.
+- Alerts: **on the affected row** only (red border + warning icon).
+  No central feed.
+
+### Setups Library (locked)
+
+- **Two-pane** docs-site layout: list left (collapsible categories),
+  detail right.
+- Detail sections (image2 'Breakout Trend' reference):
+  1. Definition: criteria · anti-criteria · indicators · gotchas.
+  2. Trading plan: entry · stop · target · sizing · allowed contexts.
+     (Absorbs the old "Playbook" content.)
+  3. Stats panel: WR · expectancy · MAE/MFE distributions · monthly
+     PnL · per-setup equity curve.
+  4. Linked trades: recent trades using this setup (click → Trade
+     drawer).
+- New setup = blank form; only `name` + `category` required.
+
+### Mistakes (locked)
+
+- Two-pane layout matching Setups (consistency).
+- Detail sections: definition · triggers · $ cost · prevention
+  checklist · stats · linked trades.
+
+### Tendencies (deferred layout — but most likely matches Setups/
+Mistakes two-pane pattern; will revisit during build).
+
+### Psychology (deferred layout — likely two-pane read-mostly with
+optional cross-links to Tendencies/Mistakes; will revisit during
+build).
+
+### Goals (locked)
+
+- Two goal types:
+  - **Mechanical** — has a machine-checkable definition (e.g. "no
+    trade past 11:30 ET" → scan day's trades, auto pass/fail).
+  - **Reflective** — manual checkbox at end-of-day.
+- Daily compliance score = pass count / total. Surfaces in Today's
+  hero card.
+
+### To-Do (deferred depth — minimal version: recurring checklist with
+streaks + simple backlog list. Decide between simple/Kanban/sub-tasks
+during build.)
+
+### Journal (per-trade reader, locked)
+
+- Notes live ON the trade itself (markdown editor in the trade
+  drawer).
+- Journal sidebar = chronological reader of all trade notes with
+  trade context (instrument / PnL / R) as header. Click → trade
+  drawer.
+
+### Daily Log (locked)
+
+- One free-form markdown entry per session date.
+- Small state header: mood slider · sleep hours · was-tilted Y/N.
+- The 1-line takeaway on Today is the first line of this entry.
+- Section view = list of past entries.
+
+### Economic Calendar (locked)
+
+- Auto-pulled feed (free public source / scrape) with manual
+  override. High/medium/low impact flags.
+- Days auto-tagged with news flag visible on the Calendar tab cells.
+
+## 7. Trade Entry Workflow
+
+- **Step 1 — Fast log** (8 fields, ~20s): instrument · direction ·
+  entry · exit · MAE (points) · MFE (points) · initial_stop (points)
+  · accounts-fanned-to with contracts each. **No tags inline.**
+- **Step 2 — End-of-day review queue**: toggleable wizard / list,
+  default **wizard** (one-trade-at-a-time, focused page, prompts for
+  setup / mistakes / tendencies / journal note / screenshot, with
+  progress bar and skip option).
+
+## 8. Out of Scope for v1
+
+- Options modeling.
+- Phone access.
+- Tag and time/context filters on Trades page.
+- Streaks / max DD / expectancy / profit factor on Performance.
+- Live/intra-trade rule engine.
+- Per-broker CSV importers (only generic mapper).
+- Account cohorts / groups.
+- Outcome (PnL) goals.
 
 ---
 
-## Resume here (next session)
+## Implementation order (proposed)
 
-Display tabs (Trades / Calendar / Performance) are now locked above.
-Watchlist format was deferred — re-decide next session.
+Once the user confirms exit-plan-mode:
 
-Next batches to run:
-
-0. **Watchlist** (deferred) — per-day vs persistent levels vs both?
-   Layout (cards / table / by-instrument)? Pre-market specific
-   widgets (key levels, news, gameplan, expected setups)?
-1. **Trades page detail view** — what does clicking a row show?
-   Image1 expanded-card style with tags, screenshots, journal note?
-   Filters needed (date, account, firm, setup, mistake, R-bucket)?
-2. **Calendar drill-down** — clicking a day opens what? Per-account
-   breakdown table? List of trades? Equity overlay?
-3. **Performance — date-range controls** and aggregation defaults.
-4. **Risk / Account State** — the real-time per-firm dashboard.
-   This is the most novel page; likely image6 HUD-style.
-   Per-account cards/rows showing: distance to target, distance to
-   bust, current trailing DD, days traded / min days, consistency %,
-   payout countdown, rule-violation alerts. Account grouping by firm.
-6. **Setups Library** detail view — image2 'Breakout Trend' style
-   (definition, conditions, indicators, gotchas, linked trades, stats).
-7. **Tendencies** — table + per-tendency stats page.
-8. **Mistakes** — catalogue + per-mistake stats page.
-9. **Psychology** — bias library entries.
-10. **Goals** — process rules + daily compliance UI.
-11. **To-Do** — Today checklist + Backlog.
-12. **Journal** — per-trade narrative editor.
-13. **Daily Log** — per-day reflection editor.
-14. **Watchlist** — pre-market planning surface.
-15. **Economic Calendar** — news/event overlay format.
-
-Then the cross-cutting items:
-
-- **Trade entry form** — final field list, layout, fan-out account
-  picker UI.
-- **End-of-day review queue** — UX of walking through unenriched trades.
-- **CSV import** — which broker formats to support first
-  (Tradovate, NinjaTrader, ThinkorSwim, TradingView)?
-- **Rule engine internals** — how rule violations are detected and
-  surfaced. How "distance to bust" is computed live (mark-to-market
-  vs end-of-day).
-- **Stack & repo skeleton** — propose the actual stack at plan-exit.
-
-Methodology reminder for resumption:
-- AskUserQuestion mode for every major decision.
-- 3–4 questions per batch.
-- After each batch, append/update the relevant section above.
-- If an answer reveals a new open question, ask it before moving on.
-- Don't lock anything until the user has answered.
+1. **Repo skeleton**: Next.js 15 + TS + Tailwind + shadcn/ui +
+   Drizzle + SQLite + zod. Folder layout. Theme tokens for the
+   TIM DASH dark/neon palette.
+2. **Schema + migrations**: instruments, firms, programs, rule
+   templates (versioned), accounts, account_transitions,
+   trade_events, trade_executions, setups, mistakes, tendencies,
+   biases, goals, daily_logs, importer_profiles, news_events.
+3. **Seed data**: CME/CBOT instrument library; firms + sample
+   programs; ~10 setups, ~12 mistakes, ~8 tendencies, ~10 biases.
+4. **App shell**: sidebar nav + theme + layout.
+5. **Trade entry fast-log + Trades page** (drawer + drawer detail).
+6. **Risk dashboard** (table + drawer). This is where the rule
+   engine first surfaces; keep it closed-trades-only.
+7. **Today page** (hero + sections; pre-market widgets).
+8. **Calendar + Performance**.
+9. **Reference tabs** (Setups, Mistakes, Tendencies, Psychology,
+   Goals, To-Do, Daily Log, Journal reader).
+10. **CSV column-mapper importer**.
+11. **Economic Calendar feed integration**.
