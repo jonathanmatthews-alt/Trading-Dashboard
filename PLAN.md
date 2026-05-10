@@ -131,7 +131,27 @@ Cheatsheets (folded into Today's pre-market section).
 - Pre-market section absorbs the dropped "Cheatsheets" content
   (rituals, key levels, position-size calc).
 
-## 7. Reference Tabs — Settled Definitions
+## 7. Display Tabs (locked)
+
+- **Trades page**: comprehensive default columns — date, instrument,
+  direction, entry, exit, contracts (or "across N accts"), $PnL, R,
+  MAE, MFE, PnLDD, setup, mistakes, accounts-fanned-to. (User-
+  configurable column views can be a v2 addition.)
+- **Calendar page** (image5 reference): each daily cell shows
+  aggregate PnL across all accounts + an intraday equity sparkline.
+  Click a day for per-account/per-trade breakdown. Default view is
+  monthly grid.
+- **Performance page** widgets in v1:
+  - Equity curve over chosen date range, PA and Prop as separate
+    lines (toggleable), drawdown shaded underneath.
+  - Edge-attribution panel: PnL by setup / instrument / day-of-week /
+    hour-of-day / mistake-tag / tendency-tag (sortable bar charts).
+  - Distribution histograms: MAE (R), MFE (R), PnLDD.
+  - NOT in v1: streaks, max DD vs current DD, expectancy, profit
+    factor (deferred to v2).
+- **Watchlist**: format deferred. Re-decide next session.
+
+## 8. Reference Tabs — Settled Definitions
 
 - **Setups Library**: master catalogue of named setups + their plans
   (definition, criteria, indicators, gotchas, linked trades, stats).
@@ -159,24 +179,21 @@ Cheatsheets (folded into Today's pre-market section).
 
 ## Resume here (next session)
 
-We were mid-batch when paused. Next batch was going to cover the four
-main display tabs in one go:
+Display tabs (Trades / Calendar / Performance) are now locked above.
+Watchlist format was deferred — re-decide next session.
 
-1. **Watchlist** — per-day watchlist vs persistent levels per instrument
-   vs both? Format (cards, table, by-instrument)?
-2. **Trades page** — which fields visible by default in the trade list?
-   Image1 'TRADE LOG' style (chronological cards with tags) or image3
-   tabular style? Filters needed (date, account, firm, setup, mistake)?
-3. **Calendar page** — with 20+ accounts, per-account or aggregate
-   default? What's in each cell (PnL, # trades, win rate, R)?
-   Multiple calendars side-by-side, or one with a filter?
-4. **Performance page** — equity curve + which other widgets?
-   Drawdown chart, MAE/MFE distribution, PnL by setup, by hour,
-   by day-of-week, by instrument, by account, R-distribution.
+Next batches to run:
 
-After those, remaining tabs to design (in suggested order):
-
-5. **Risk / Account State** — the real-time per-firm dashboard.
+0. **Watchlist** (deferred) — per-day vs persistent levels vs both?
+   Layout (cards / table / by-instrument)? Pre-market specific
+   widgets (key levels, news, gameplan, expected setups)?
+1. **Trades page detail view** — what does clicking a row show?
+   Image1 expanded-card style with tags, screenshots, journal note?
+   Filters needed (date, account, firm, setup, mistake, R-bucket)?
+2. **Calendar drill-down** — clicking a day opens what? Per-account
+   breakdown table? List of trades? Equity overlay?
+3. **Performance — date-range controls** and aggregation defaults.
+4. **Risk / Account State** — the real-time per-firm dashboard.
    This is the most novel page; likely image6 HUD-style.
    Per-account cards/rows showing: distance to target, distance to
    bust, current trailing DD, days traded / min days, consistency %,
