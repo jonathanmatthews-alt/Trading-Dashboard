@@ -1,6 +1,7 @@
 import { format } from "date-fns";
 import { PageHeader } from "@/components/page-header";
 import { RiskTable } from "@/components/risk-table";
+import { AccountAddButton } from "@/components/account-form";
 import {
   listAccountStates,
   listAllTransitions,
@@ -33,6 +34,7 @@ export default async function RiskPage() {
             ? `${dangerCount} ACCOUNT${dangerCount === 1 ? "" : "S"} IN DANGER`
             : "ALL ACCOUNTS NOMINAL"
         }
+        right={<AccountAddButton firms={firms} programs={programs} />}
       />
       <RiskTable
         states={states}

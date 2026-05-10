@@ -14,7 +14,9 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { transitionAccount, undoLastTransition } from "@/app/actions/accounts";
 import { suggestedNextStage } from "@/lib/stages";
+import { AccountEditButton } from "@/components/account-form";
 import type { AccountState } from "@/lib/rule-engine";
+import type { Firm, Program } from "@/db/schema";
 
 const ALL_STAGES = [
   { id: "eval", label: "Eval", tone: "muted" },
@@ -38,9 +40,11 @@ type Transition = {
 type Props = {
   state: AccountState;
   transitions: Transition[];
+  firms: Firm[];
+  programs: Program[];
 };
 
-export function AccountStageCell({ state, transitions }: Props) {
+export function AccountStageCell({ state, transitions, firms, programs }: Props) {
   const [open, setOpen] = useState(false);
 
   const eligible = state.passes && !state.busted;
@@ -78,6 +82,8 @@ export function AccountStageCell({ state, transitions }: Props) {
         onOpenChange={setOpen}
         state={state}
         transitions={transitions}
+        firms={firms}
+        programs={programs}
       />
     </>
   );
@@ -88,11 +94,15 @@ function StageDrawer({
   onOpenChange,
   state,
   transitions,
+  firms,
+  programs,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   state: AccountState;
   transitions: Transition[];
+  firms: Firm[];
+  programs: Program[];
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -186,6 +196,12 @@ function StageDrawer({
               <Badge variant={state.busted ? "loss" : eligible ? "win" : "muted"}>
                 {state.rule?.stageDisplayLabel ?? state.account.currentStage ?? "—"}
               </Badge>
+              <span className="ml-auto" />
+              <AccountEditButton
+                account={state.account}
+                firms={firms}
+                programs={programs}
+              />
             </div>
           </DrawerTitle>
           <div className="text-mono text-xs text-muted-foreground">

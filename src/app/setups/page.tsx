@@ -2,11 +2,13 @@ import { PageHeader } from "@/components/page-header";
 import { TwoPane } from "@/components/two-pane";
 import { Badge } from "@/components/ui/badge";
 import { listSetups } from "@/lib/queries";
+import { SetupsAddButton, SetupEditButton } from "@/components/setups-controls";
 
 export const dynamic = "force-dynamic";
 
 export default async function SetupsPage() {
   const setups = await listSetups();
+  const categories = Array.from(new Set(setups.map((s) => s.category)));
   const items = setups.map((s) => ({
     id: s.id,
     name: s.name,
@@ -17,6 +19,8 @@ export default async function SetupsPage() {
           <h2 className="text-display text-2xl text-orange-neon">{s.name}</h2>
           <Badge variant="orange">{s.category}</Badge>
           {s.tier && <Badge variant="neon">Tier {s.tier}</Badge>}
+          <span className="ml-auto" />
+          <SetupEditButton setup={s} categories={categories} />
         </div>
         {s.oneLiner && <p className="text-sm text-foreground/90">{s.oneLiner}</p>}
 
@@ -52,6 +56,7 @@ export default async function SetupsPage() {
         eyebrow="Reference"
         title="SETUPS LIBRARY"
         subtitle="MASTER PATTERN CATALOGUE · ABSORBED PLAYBOOK"
+        right={<SetupsAddButton categories={categories} />}
       />
       <TwoPane items={items} />
     </div>

@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { db, schema } from "@/db/client";
 import { eq } from "drizzle-orm";
+import { GoalsAddButton, GoalEditButton } from "@/components/goal-form";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +13,7 @@ export default async function GoalsPage() {
     .from(schema.goals)
     .where(eq(schema.goals.archived, false));
 
-  /* Compliance % over last 30 entries per goal */
+  /* Compliance % over all entries per goal */
   const allChecks = await db.select().from(schema.goalDailyChecks);
   const byGoal = new Map<number, { passed: number; total: number }>();
   for (const c of allChecks) {
@@ -28,6 +29,7 @@ export default async function GoalsPage() {
         eyebrow="Reference"
         title="GOALS"
         subtitle="PROCESS RULES · DAILY COMPLIANCE %"
+        right={<GoalsAddButton />}
       />
       <Card>
         <CardHeader>
@@ -36,7 +38,7 @@ export default async function GoalsPage() {
         <CardContent>
           {goals.length === 0 ? (
             <div className="text-sm text-muted-foreground">
-              No goals yet. (Goal-creation UI coming in v1.5.)
+              No goals yet. Click "+ New Goal" to add one.
             </div>
           ) : (
             <ul className="divide-y divide-border/40">
@@ -52,11 +54,14 @@ export default async function GoalsPage() {
                       </Badge>
                       <span className="text-sm text-foreground">{g.rule}</span>
                     </div>
-                    <span className="text-mono text-sm text-muted-foreground">
-                      {compliance != null
-                        ? `${(compliance * 100).toFixed(0)}% (${stats!.passed}/${stats!.total})`
-                        : "no data"}
-                    </span>
+                    <div className="flex items-center gap-3">
+                      <span className="text-mono text-sm text-muted-foreground">
+                        {compliance != null
+                          ? `${(compliance * 100).toFixed(0)}% (${stats!.passed}/${stats!.total})`
+                          : "no data"}
+                      </span>
+                      <GoalEditButton goal={g} />
+                    </div>
                   </li>
                 );
               })}

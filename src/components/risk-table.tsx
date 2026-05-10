@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn, formatCurrency, formatPercent } from "@/lib/utils";
 import { AccountStageCell } from "@/components/account-stage-cell";
+import { AccountEditButton } from "@/components/account-form";
 
 type Transition = {
   id: number;
@@ -153,6 +154,8 @@ export function RiskTable({ states, firms, programs, transitions }: Props) {
                 rows={firmRows}
                 extraCols={extraCols}
                 transitions={transitions}
+                firms={firms}
+                programs={programs}
               />
             ))}
             {grouped.length === 0 && (
@@ -174,11 +177,15 @@ function FirmGroup({
   rows,
   extraCols,
   transitions,
+  firms,
+  programs,
 }: {
   firmName: string;
   rows: Row[];
   extraCols: Set<ExtraColId>;
   transitions: Transition[];
+  firms: Firm[];
+  programs: Program[];
 }) {
   return (
     <>
@@ -199,6 +206,8 @@ function FirmGroup({
           transitions={transitions.filter(
             (t) => t.accountId === state.account.id,
           )}
+          firms={firms}
+          programs={programs}
         />
       ))}
     </>
@@ -210,11 +219,15 @@ function RiskRow({
   programName,
   extraCols,
   transitions,
+  firms,
+  programs,
 }: {
   state: AccountState;
   programName: string;
   extraCols: Set<ExtraColId>;
   transitions: Transition[];
+  firms: Firm[];
+  programs: Program[];
 }) {
   const danger = state.alerts.some((a) => a.severity === "danger");
   const warn = state.alerts.some((a) => a.severity === "warn");
@@ -290,9 +303,21 @@ function RiskRow({
       </td>
       <td className="px-3 py-2">
         {state.account.currentStage ? (
-          <AccountStageCell state={state} transitions={transitions} />
+          <AccountStageCell
+            state={state}
+            transitions={transitions}
+            firms={firms}
+            programs={programs}
+          />
         ) : (
-          <Badge variant="muted">PA</Badge>
+          <div className="flex items-center gap-1.5">
+            <Badge variant="muted">PA</Badge>
+            <AccountEditButton
+              account={state.account}
+              firms={firms}
+              programs={programs}
+            />
+          </div>
         )}
       </td>
       {extraCols.has("dd") && (

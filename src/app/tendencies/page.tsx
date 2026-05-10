@@ -1,6 +1,10 @@
 import { PageHeader } from "@/components/page-header";
 import { TwoPane } from "@/components/two-pane";
 import { listTendencies } from "@/lib/queries";
+import {
+  TendenciesAddButton,
+  TendencyEditButton,
+} from "@/components/tendency-controls";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +15,11 @@ export default async function TendenciesPage() {
     name: t.name,
     detail: (
       <div className="space-y-6">
-        <h2 className="text-display text-2xl text-orange-neon">{t.name}</h2>
+        <div className="flex items-center gap-3">
+          <h2 className="text-display text-2xl text-orange-neon">{t.name}</h2>
+          <span className="ml-auto" />
+          <TendencyEditButton tendency={t} />
+        </div>
         <Field label="Description" value={t.oneLiner} />
         <Field label="Triggers" value={t.triggers} />
         <Field label="Counter-strategy" value={t.counterStrategy} />
@@ -27,6 +35,7 @@ export default async function TendenciesPage() {
         eyebrow="Reference"
         title="TENDENCIES"
         subtitle="SELF-TAGGED BEHAVIOURAL BIASES"
+        right={<TendenciesAddButton />}
       />
       <TwoPane items={items} />
     </div>

@@ -1,6 +1,10 @@
 import { PageHeader } from "@/components/page-header";
 import { TwoPane } from "@/components/two-pane";
 import { listMistakes } from "@/lib/queries";
+import {
+  MistakesAddButton,
+  MistakeEditButton,
+} from "@/components/mistake-controls";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +15,11 @@ export default async function MistakesPage() {
     name: m.name,
     detail: (
       <div className="space-y-6">
-        <h2 className="text-display text-2xl text-orange-neon">{m.name}</h2>
+        <div className="flex items-center gap-3">
+          <h2 className="text-display text-2xl text-orange-neon">{m.name}</h2>
+          <span className="ml-auto" />
+          <MistakeEditButton mistake={m} />
+        </div>
         <Field label="Definition" value={m.oneLiner} />
         <Field label="Triggers" value={m.triggers} />
         <Field label="Prevention checklist" value={m.prevention} />
@@ -27,6 +35,7 @@ export default async function MistakesPage() {
         eyebrow="Reference"
         title="MISTAKES"
         subtitle="CATALOGUE WITH STRUCTURED TAGS"
+        right={<MistakesAddButton />}
       />
       <TwoPane items={items} />
     </div>
