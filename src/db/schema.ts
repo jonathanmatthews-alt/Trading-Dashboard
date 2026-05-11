@@ -304,6 +304,7 @@ export const goalDailyChecks = sqliteTable(
 export const dailyLogs = sqliteTable("daily_logs", {
   date: text("date").primaryKey(),
   body: text("body"),
+  premarketNotes: text("premarket_notes"),
   mood: integer("mood"),
   sleepHours: real("sleep_hours"),
   tilted: integer("tilted", { mode: "boolean" }),

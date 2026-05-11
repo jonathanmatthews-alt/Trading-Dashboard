@@ -14,6 +14,7 @@ import { db, schema } from "@/db/client";
 import { cn, formatCurrency, formatPercent, formatR } from "@/lib/utils";
 import { eq } from "drizzle-orm";
 import { ComplianceList } from "@/components/compliance-list";
+import { PremarketNotes } from "@/components/premarket-notes";
 import { evaluateGoalsForDate } from "@/lib/goal-evaluator";
 
 export const dynamic = "force-dynamic";
@@ -67,43 +68,13 @@ export default async function TodayPage() {
         subtitle={format(new Date(), "EEE · MMM d yyyy").toUpperCase()}
       />
 
-      {/* Pre-market section */}
+      {/* Pre-market notes — free-form for now; richer surface comes later. */}
       <Card className="mb-6">
         <CardHeader>
           <CardTitle>Pre-market gameplan</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <div>
-              <div className="text-display text-[10px] tracking-widest text-muted-foreground mb-1">
-                rituals
-              </div>
-              <ul className="space-y-1 text-mono text-sm text-muted-foreground">
-                <li>· Reviewed yesterday's trades</li>
-                <li>· Marked daily levels</li>
-                <li>· Checked news / events</li>
-                <li>· Wrote pre-market gameplan</li>
-              </ul>
-            </div>
-            <div>
-              <div className="text-display text-[10px] tracking-widest text-muted-foreground mb-1">
-                key levels
-              </div>
-              <div className="text-mono text-sm text-muted-foreground/80">
-                Add daily levels per instrument here. (Editable surface coming
-                in v1.5.)
-              </div>
-            </div>
-            <div>
-              <div className="text-display text-[10px] tracking-widest text-muted-foreground mb-1">
-                position-size calc
-              </div>
-              <div className="text-mono text-sm text-muted-foreground/80">
-                Account size ÷ stop distance × tick value → contracts. (UI
-                coming in v1.5.)
-              </div>
-            </div>
-          </div>
+          <PremarketNotes date={today} initial={log?.premarketNotes ?? null} />
         </CardContent>
       </Card>
 

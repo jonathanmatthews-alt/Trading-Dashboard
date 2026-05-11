@@ -36,3 +36,22 @@ export async function saveDailyLog(input: unknown) {
   revalidatePath("/");
   return { ok: true };
 }
+
+const PremarketSchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  premarketNotes: z.string().nullable().optional(),
+});
+
+export async function savePremarketNotes(input: unknown) {
+  const data = PremarketSchema.parse(input);
+  const notes = data.premarketNotes?.trim() || null;
+  await db
+    .insert(schema.dailyLogs)
+    .values({ date: data.date, premarketNotes: notes })
+    .onConflictDoUpdate({
+      target: schema.dailyLogs.date,
+      set: { premarketNotes: notes },
+    });
+  revalidatePath("/");
+  return { ok: true };
+}
