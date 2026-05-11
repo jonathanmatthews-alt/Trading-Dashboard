@@ -179,6 +179,215 @@ const RULE_TEMPLATES = (programIdByName: Map<string, number>): (typeof schema.ru
     maxContracts: 5,
     notes: "Treated as a prop firm (per user). Adjust rules to match firm spec.",
   },
+
+  /* ─── Sim Funded (post-eval) ─── */
+  /* Apex 100K · Sim Funded ("PA account"). No new target; trailing locks at
+     same threshold. Payouts gated on 8 trading days + min $50 win-days × 5
+     for first payout; we approximate. */
+  {
+    programId: programIdByName.get("Apex 100K Eval")!,
+    stageType: "sim_funded",
+    stageDisplayLabel: "Sim Funded (PA)",
+    profitTarget: null,
+    drawdownType: "trailing_eod",
+    drawdownAmount: 3_000,
+    drawdownLockAt: 103_100,
+    dailyLossLimit: null,
+    minTradingDays: 8,
+    consistencyPct: 0.30,
+    maxContracts: 10,
+    payoutCadenceDays: 8,
+    payoutMinimum: 500,
+    firstPayoutEligibilityDays: 8,
+    firstPayoutMinProfit: 1_000,
+    payoutSplitPct: 1.00,
+    notes: "Apex Sim Funded (PA). Trailing locked at $103,100. 30% consistency. First payout after 8 trading days.",
+  },
+  /* Tradeify 50K · Sim Funded */
+  {
+    programId: programIdByName.get("Advanced 50K")!,
+    stageType: "sim_funded",
+    stageDisplayLabel: "Sim Funded",
+    profitTarget: null,
+    drawdownType: "trailing_eod",
+    drawdownAmount: 2_000,
+    dailyLossLimit: 1_250,
+    minTradingDays: 5,
+    consistencyPct: 0.40,
+    maxContracts: 6,
+    payoutCadenceDays: 14,
+    payoutMinimum: 250,
+    firstPayoutEligibilityDays: 5,
+    firstPayoutMinProfit: 750,
+    payoutSplitPct: 1.00,
+    notes: "Tradeify Sim Funded. EOD trailing DD $2k still applies until first payout.",
+  },
+  /* TPT 50K · Sim Funded */
+  {
+    programId: programIdByName.get("TPT 50K")!,
+    stageType: "sim_funded",
+    stageDisplayLabel: "Sim Funded",
+    profitTarget: null,
+    drawdownType: "trailing_eod",
+    drawdownAmount: 2_000,
+    minTradingDays: 7,
+    consistencyPct: 0.50,
+    maxContracts: 5,
+    payoutCadenceDays: 14,
+    payoutMinimum: 500,
+    firstPayoutEligibilityDays: 7,
+    firstPayoutMinProfit: 1_000,
+    payoutSplitPct: 0.90,
+    notes: "TPT Sim Funded. Same trailing DD until $2k buffer is converted.",
+  },
+  /* Raen 50K · Sim Funded */
+  {
+    programId: programIdByName.get("Raen 50K")!,
+    stageType: "sim_funded",
+    stageDisplayLabel: "Sim Funded",
+    profitTarget: null,
+    drawdownType: "trailing_eod",
+    drawdownAmount: 2_000,
+    minTradingDays: 5,
+    consistencyPct: 0.40,
+    maxContracts: 5,
+    payoutCadenceDays: 14,
+    payoutMinimum: 250,
+    firstPayoutEligibilityDays: 5,
+    firstPayoutMinProfit: 750,
+    payoutSplitPct: 0.90,
+    notes: "Raen Sim Funded. Adjust to match firm spec.",
+  },
+
+  /* ─── Live Funded ─── */
+  /* Apex Live Funded — trailing locks at starting + $3,100; no consistency
+     once first payout has been taken. */
+  {
+    programId: programIdByName.get("Apex 100K Eval")!,
+    stageType: "live_funded",
+    stageDisplayLabel: "Live Funded",
+    profitTarget: null,
+    drawdownType: "static",
+    drawdownAmount: 3_100,
+    dailyLossLimit: null,
+    maxContracts: 10,
+    payoutCadenceDays: 8,
+    payoutMinimum: 500,
+    payoutSplitPct: 1.00,
+    notes: "Apex Live. Trailing has locked; effective DD is static $3,100 below high-water at lock point.",
+  },
+  /* Tradeify Live Funded */
+  {
+    programId: programIdByName.get("Advanced 50K")!,
+    stageType: "live_funded",
+    stageDisplayLabel: "Live Funded",
+    profitTarget: null,
+    drawdownType: "static",
+    drawdownAmount: 2_000,
+    dailyLossLimit: 1_250,
+    maxContracts: 6,
+    payoutCadenceDays: 14,
+    payoutMinimum: 250,
+    payoutSplitPct: 0.90,
+    notes: "Tradeify Live. Buffer cleared; DD becomes static once first payout taken.",
+  },
+  /* TPT Live Funded */
+  {
+    programId: programIdByName.get("TPT 50K")!,
+    stageType: "live_funded",
+    stageDisplayLabel: "Live Funded",
+    profitTarget: null,
+    drawdownType: "static",
+    drawdownAmount: 2_000,
+    maxContracts: 5,
+    payoutCadenceDays: 14,
+    payoutMinimum: 500,
+    payoutSplitPct: 0.90,
+    notes: "TPT Live. DD locks after buffer earned.",
+  },
+  /* Raen Live Funded */
+  {
+    programId: programIdByName.get("Raen 50K")!,
+    stageType: "live_funded",
+    stageDisplayLabel: "Live Funded",
+    profitTarget: null,
+    drawdownType: "static",
+    drawdownAmount: 2_000,
+    maxContracts: 5,
+    payoutCadenceDays: 14,
+    payoutMinimum: 250,
+    payoutSplitPct: 0.90,
+    notes: "Raen Live. Adjust to match firm spec.",
+  },
+
+  /* ─── Payout Active ─── */
+  /* For payout_active, the rules are typically the same as live_funded but
+     with no daily loss cap and full discretion. We keep most fields identical. */
+  {
+    programId: programIdByName.get("Apex 100K Eval")!,
+    stageType: "payout_active",
+    stageDisplayLabel: "Payout Active",
+    profitTarget: null,
+    drawdownType: "static",
+    drawdownAmount: 3_100,
+    maxContracts: 10,
+    payoutCadenceDays: 8,
+    payoutMinimum: 500,
+    payoutSplitPct: 1.00,
+    notes: "Apex Payout Active. First payout already taken.",
+  },
+  {
+    programId: programIdByName.get("Lucid 50K")!,
+    stageType: "payout_active",
+    stageDisplayLabel: "Payout Active",
+    profitTarget: null,
+    drawdownType: "static",
+    drawdownAmount: 2_000,
+    maxContracts: 5,
+    payoutCadenceDays: 7,
+    payoutMinimum: 200,
+    payoutSplitPct: 0.90,
+    notes: "Lucid Payout Active.",
+  },
+  {
+    programId: programIdByName.get("Advanced 50K")!,
+    stageType: "payout_active",
+    stageDisplayLabel: "Payout Active",
+    profitTarget: null,
+    drawdownType: "static",
+    drawdownAmount: 2_000,
+    maxContracts: 6,
+    payoutCadenceDays: 14,
+    payoutMinimum: 250,
+    payoutSplitPct: 0.90,
+    notes: "Tradeify Payout Active.",
+  },
+  {
+    programId: programIdByName.get("TPT 50K")!,
+    stageType: "payout_active",
+    stageDisplayLabel: "Payout Active",
+    profitTarget: null,
+    drawdownType: "static",
+    drawdownAmount: 2_000,
+    maxContracts: 5,
+    payoutCadenceDays: 14,
+    payoutMinimum: 500,
+    payoutSplitPct: 0.90,
+    notes: "TPT Payout Active.",
+  },
+  {
+    programId: programIdByName.get("Raen 50K")!,
+    stageType: "payout_active",
+    stageDisplayLabel: "Payout Active",
+    profitTarget: null,
+    drawdownType: "static",
+    drawdownAmount: 2_000,
+    maxContracts: 5,
+    payoutCadenceDays: 14,
+    payoutMinimum: 250,
+    payoutSplitPct: 0.90,
+    notes: "Raen Payout Active.",
+  },
 ];
 
 /* ───────── Goals (sample process rules) ───────── */
@@ -225,23 +434,51 @@ async function seed() {
   const firmIdByName = new Map(allFirms.map((f) => [f.name, f.id] as const));
   console.log(`  · ${allFirms.length} firms`);
 
+  /* Idempotent: skip programs that already exist with the same (firmId, name). */
+  const existingPrograms = await db.select().from(schema.programs);
+  const seenPrograms = new Set(
+    existingPrograms.map((p) => `${p.firmId}:${p.name}`),
+  );
   for (const p of PROGRAMS(firmIdByName)) {
-    await db.insert(schema.programs).values(p).onConflictDoNothing();
+    const key = `${p.firmId}:${p.name}`;
+    if (seenPrograms.has(key)) continue;
+    await db.insert(schema.programs).values(p);
+    seenPrograms.add(key);
   }
   const allPrograms = await db.select().from(schema.programs);
   const programIdByName = new Map(allPrograms.map((p) => [p.name, p.id] as const));
   console.log(`  · ${allPrograms.length} programs`);
 
+  /* Idempotent: only insert if no template exists yet for (program, stage). */
+  const existingTpls = await db.select().from(schema.ruleTemplates);
+  const seen = new Set(
+    existingTpls.map((t) => `${t.programId}:${t.stageType}`),
+  );
+  let inserted = 0;
   for (const t of RULE_TEMPLATES(programIdByName)) {
+    const key = `${t.programId}:${t.stageType}`;
+    if (seen.has(key)) continue;
     await db.insert(schema.ruleTemplates).values(t);
+    seen.add(key);
+    inserted++;
   }
-  console.log(`  · ${RULE_TEMPLATES(programIdByName).length} rule templates`);
+  console.log(`  · ${inserted} new rule templates (${existingTpls.length} already present)`);
 
-  await db.insert(schema.goals).values(GOALS);
-  console.log(`  · ${GOALS.length} goals`);
+  const existingGoals = await db.select().from(schema.goals);
+  if (existingGoals.length === 0) {
+    await db.insert(schema.goals).values(GOALS);
+    console.log(`  · ${GOALS.length} goals`);
+  } else {
+    console.log(`  · ${existingGoals.length} goals already present (skipped)`);
+  }
 
-  await db.insert(schema.todoItems).values(TODOS);
-  console.log(`  · ${TODOS.length} todo items`);
+  const existingTodos = await db.select().from(schema.todoItems);
+  if (existingTodos.length === 0) {
+    await db.insert(schema.todoItems).values(TODOS);
+    console.log(`  · ${TODOS.length} todo items`);
+  } else {
+    console.log(`  · ${existingTodos.length} todo items already present (skipped)`);
+  }
 
   /* Sample accounts to demonstrate the Risk dashboard. Skip if any account exists. */
   const existing = await db.select().from(schema.accounts).limit(1);
