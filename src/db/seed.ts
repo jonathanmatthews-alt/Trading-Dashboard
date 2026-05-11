@@ -1,5 +1,6 @@
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
+import { eq } from "drizzle-orm";
 import * as schema from "./schema";
 import path from "node:path";
 
@@ -447,6 +448,18 @@ const GOALS: (typeof schema.goals.$inferInsert)[] = [
   { rule: "Reviewed prior session before market open", type: "reflective", mechanicalDef: null },
 ];
 
+/* ───────── PA account fee defaults ─────────
+   Each personal (PA) account gets its own commission schedule because the
+   broker schedule varies per account (Tradovate vs IBKR vs etc.). These are
+   reasonable starting values — edit on the Fees page. */
+const PA_FEE_DEFAULTS: Record<string, number> = {
+  ES: 4.0, NQ: 4.0, RTY: 4.0, YM: 4.0,
+  MES: 0.75, MNQ: 0.75, M2K: 0.75, MYM: 0.75,
+  CL: 4.0, MCL: 0.75,
+  GC: 4.0, MGC: 0.75,
+  SI: 4.0, ZB: 3.0, ZN: 3.0, "6E": 4.0, "6B": 4.0,
+};
+
 /* ───────── To-Do recurring checklist ───────── */
 const TODOS: (typeof schema.todoItems.$inferInsert)[] = [
   { title: "Review yesterday's trades",      kind: "recurring" },
@@ -514,27 +527,59 @@ async function seed() {
 
   /* Fee schedules — only insert defaults the user hasn't already customised. */
   const existingFees = await db.select().from(schema.feeSchedules);
-  const seenFees = new Set(
-    existingFees.map((f) => `${f.firmId}:${f.instrument}:${f.stageType ?? ""}`),
+  const seenFirmFees = new Set(
+    existingFees
+      .filter((f) => f.firmId != null)
+      .map((f) => `${f.firmId}:${f.instrument}:${f.stageType ?? ""}`),
   );
-  let feesInserted = 0;
+  const seenAcctFees = new Set(
+    existingFees
+      .filter((f) => f.accountId != null)
+      .map((f) => `${f.accountId}:${f.instrument}`),
+  );
+  let firmFeesInserted = 0;
   for (const [firmName, perInstrument] of Object.entries(FEE_DEFAULTS_BY_FIRM)) {
     const firmId = firmIdByName.get(firmName);
     if (firmId == null) continue;
     for (const [instrument, fee] of Object.entries(perInstrument)) {
       const key = `${firmId}:${instrument}:`;
-      if (seenFees.has(key)) continue;
+      if (seenFirmFees.has(key)) continue;
       await db.insert(schema.feeSchedules).values({
         firmId,
+        accountId: null,
         instrument,
         stageType: null,
         feePerRtPerContract: fee,
       });
-      seenFees.add(key);
-      feesInserted++;
+      seenFirmFees.add(key);
+      firmFeesInserted++;
     }
   }
-  console.log(`  · ${feesInserted} new fee rows (${existingFees.length} already present)`);
+
+  /* PA account fee defaults — one row per PA account × instrument. */
+  const paAccounts = await db
+    .select()
+    .from(schema.accounts)
+    .where(eq(schema.accounts.accountType, "pa"));
+  let paFeesInserted = 0;
+  for (const acct of paAccounts) {
+    for (const [instrument, fee] of Object.entries(PA_FEE_DEFAULTS)) {
+      const key = `${acct.id}:${instrument}`;
+      if (seenAcctFees.has(key)) continue;
+      await db.insert(schema.feeSchedules).values({
+        firmId: null,
+        accountId: acct.id,
+        instrument,
+        stageType: null,
+        feePerRtPerContract: fee,
+      });
+      seenAcctFees.add(key);
+      paFeesInserted++;
+    }
+  }
+  console.log(
+    `  · ${firmFeesInserted} new firm fee rows · ${paFeesInserted} new PA fee rows (${existingFees.length} already present)`,
+  );
 
   const existingGoals = await db.select().from(schema.goals);
   if (existingGoals.length === 0) {

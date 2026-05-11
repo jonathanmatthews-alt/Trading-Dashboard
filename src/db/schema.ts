@@ -318,21 +318,34 @@ export const newsEvents = sqliteTable("news_events", {
   source: text("source", { enum: ["manual", "auto"] }).notNull().default("manual"),
 });
 
-/* ─── Fee schedules (per firm × instrument × optional stage) ─── */
+/* ─── Fee schedules ───
+ *
+ * Exactly one of (firmId, accountId) is set per row:
+ *   - firmId set → applies to every account at this firm (with an optional
+ *     stageType override for tiered programs like Apex's PA-Edge).
+ *   - accountId set → applies to that specific PA account. Each PA account
+ *     has its own broker with its own commission schedule.
+ *
+ * The app-level check is enforced by the FeeMap loader and the upsertFee
+ * action; SQLite doesn't enforce XOR constraints natively.
+ */
 export const feeSchedules = sqliteTable(
   "fee_schedules",
   {
     id: integer("id").primaryKey({ autoIncrement: true }),
-    firmId: integer("firm_id")
-      .notNull()
-      .references(() => firms.id, { onDelete: "cascade" }),
+    firmId: integer("firm_id").references(() => firms.id, {
+      onDelete: "cascade",
+    }),
+    accountId: integer("account_id").references(() => accounts.id, {
+      onDelete: "cascade",
+    }),
     instrument: text("instrument")
       .notNull()
       .references(() => instruments.symbol),
     /**
-     * Optional: when set, this fee applies only to accounts at this stage
-     * type on this firm. Lookup prefers stage-specific over firm-default
-     * (where stageType is null).
+     * Optional: when set on a firm row, the fee applies only to accounts at
+     * this stage on this firm. Lookup prefers stage-specific over firm-default.
+     * Ignored for accountId rows (PA accounts don't have stages).
      */
     stageType: text("stage_type", {
       enum: [
@@ -353,6 +366,10 @@ export const feeSchedules = sqliteTable(
       t.firmId,
       t.instrument,
       t.stageType,
+    ),
+    acctInstIdx: index("fee_schedules_acct_inst_idx").on(
+      t.accountId,
+      t.instrument,
     ),
   }),
 );

@@ -3,41 +3,51 @@ import { db, schema } from "@/db/client";
 import type { Account, FeeSchedule } from "@/db/schema";
 
 /**
- * In-memory representation of all fee schedules, indexed for fast lookup.
+ * In-memory fee schedule index.
  *
- * Lookup precedence (most specific first):
- *   1. firmId + instrument + account.currentStage
- *   2. firmId + instrument + null stageType
- *   3. zero
+ * Lookup precedence per execution:
+ *   1. Account-specific row     (PA: keyed by accountId × instrument)
+ *   2. Firm + stage override    (prop: firmId × instrument × currentStage)
+ *   3. Firm default             (prop: firmId × instrument × null stage)
+ *   4. Zero
  *
- * PA accounts (no firmId) always resolve to zero — broker commissions for
- * personal accounts are out of scope for v1.
+ * PA accounts only check (1) and stop. Prop accounts check (2) → (3).
+ * This means a PA account always uses its own broker schedule; an Apex
+ * prop account always uses Apex fees (even if the user creates a stage
+ * override, only same-stage accounts hit it).
  */
 export class FeeMap {
-  private byKey = new Map<string, number>();
+  private byFirm = new Map<string, number>();
+  private byAccount = new Map<string, number>();
 
   constructor(rows: FeeSchedule[]) {
     for (const row of rows) {
-      const k = `${row.firmId}:${row.instrument}:${row.stageType ?? ""}`;
-      this.byKey.set(k, row.feePerRtPerContract);
+      if (row.accountId != null) {
+        this.byAccount.set(`${row.accountId}:${row.instrument}`, row.feePerRtPerContract);
+      } else if (row.firmId != null) {
+        this.byFirm.set(
+          `${row.firmId}:${row.instrument}:${row.stageType ?? ""}`,
+          row.feePerRtPerContract,
+        );
+      }
     }
   }
 
-  /**
-   * Returns the per-contract round-trip fee for one execution.
-   */
   forExecution(account: Account, instrumentSymbol: string): number {
-    if (account.firmId == null) return 0;
+    /* PA: account-specific only. */
+    if (account.firmId == null) {
+      const pa = this.byAccount.get(`${account.id}:${instrumentSymbol}`);
+      return pa ?? 0;
+    }
+    /* Prop: stage override > firm default > 0. */
     if (account.currentStage) {
-      const specific = this.byKey.get(
+      const specific = this.byFirm.get(
         `${account.firmId}:${instrumentSymbol}:${account.currentStage}`,
       );
       if (specific != null) return specific;
     }
-    const fallback = this.byKey.get(
-      `${account.firmId}:${instrumentSymbol}:`,
-    );
-    return fallback ?? 0;
+    const firmDefault = this.byFirm.get(`${account.firmId}:${instrumentSymbol}:`);
+    return firmDefault ?? 0;
   }
 }
 

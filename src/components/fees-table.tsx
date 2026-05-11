@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { upsertFee, deleteFee } from "@/app/actions/fees";
 import { cn } from "@/lib/utils";
-import type { Firm, Instrument, FeeSchedule } from "@/db/schema";
+import type { Firm, Instrument, FeeSchedule, Account } from "@/db/schema";
 
 const STAGE_LABELS: Record<string, string> = {
   eval: "Eval",
@@ -17,7 +17,8 @@ const STAGE_LABELS: Record<string, string> = {
 
 type FeeEditState = {
   rowId: number | null;
-  firmId: number;
+  firmId: number | null;
+  accountId: number | null;
   instrument: string;
   stageType: string | "";
   value: string;
@@ -25,10 +26,12 @@ type FeeEditState = {
 
 export function FeesTable({
   firms,
+  paAccounts,
   instruments,
   fees,
 }: {
   firms: Firm[];
+  paAccounts: Account[];
   instruments: Instrument[];
   fees: FeeSchedule[];
 }) {
@@ -37,19 +40,11 @@ export function FeesTable({
   const [edit, setEdit] = useState<FeeEditState | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  /* Group fees by firm for the table. */
-  const byFirm = new Map<number, FeeSchedule[]>();
-  for (const f of fees) {
-    const list = byFirm.get(f.firmId) ?? [];
-    list.push(f);
-    byFirm.set(f.firmId, list);
-  }
-  /* Pull instruments into a stable order matching the seed list. */
   const sortedInstruments = instruments
     .slice()
     .sort((a, b) => a.symbol.localeCompare(b.symbol));
 
-  function findFee(firmId: number, sym: string, stage: string | null) {
+  function findFirmFee(firmId: number, sym: string, stage: string | null) {
     return fees.find(
       (f) =>
         f.firmId === firmId &&
@@ -57,20 +52,27 @@ export function FeesTable({
         (stage == null ? f.stageType == null : f.stageType === stage),
     );
   }
+  function findAcctFee(accountId: number, sym: string) {
+    return fees.find((f) => f.accountId === accountId && f.instrument === sym);
+  }
 
   function startEdit(
-    firmId: number,
-    instrument: string,
-    stageType: string | "",
-    existing?: FeeSchedule,
+    args: {
+      firmId?: number | null;
+      accountId?: number | null;
+      instrument: string;
+      stageType?: string | "";
+      existing?: FeeSchedule;
+    },
   ) {
     setError(null);
     setEdit({
-      rowId: existing?.id ?? null,
-      firmId,
-      instrument,
-      stageType,
-      value: existing?.feePerRtPerContract?.toString() ?? "",
+      rowId: args.existing?.id ?? null,
+      firmId: args.firmId ?? null,
+      accountId: args.accountId ?? null,
+      instrument: args.instrument,
+      stageType: args.stageType ?? "",
+      value: args.existing?.feePerRtPerContract?.toString() ?? "",
     });
   }
 
@@ -86,8 +88,14 @@ export function FeesTable({
         await upsertFee({
           id: edit.rowId,
           firmId: edit.firmId,
+          accountId: edit.accountId,
           instrument: edit.instrument,
-          stageType: edit.stageType === "" ? null : edit.stageType,
+          stageType:
+            edit.accountId != null
+              ? null
+              : edit.stageType === ""
+                ? null
+                : edit.stageType,
           feePerRtPerContract: num,
         });
         setEdit(null);
@@ -111,35 +119,42 @@ export function FeesTable({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {error && (
         <div className="rounded border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {error}
         </div>
       )}
 
+      {/* ─── Prop firms ─── */}
       {firms.map((firm) => {
-        const firmFees = byFirm.get(firm.id) ?? [];
+        const firmFees = fees.filter((f) => f.firmId === firm.id);
         const stageOverrides = firmFees.filter((f) => f.stageType != null);
         return (
-          <section key={firm.id} className="space-y-3">
-            <h2 className="text-display text-sm tracking-[0.3em] text-orange-neon">
-              {firm.name}
-            </h2>
+          <section key={`firm-${firm.id}`} className="space-y-3">
+            <div className="flex items-baseline gap-3">
+              <h2 className="text-display text-sm tracking-[0.3em] text-orange-neon">
+                {firm.name}
+              </h2>
+              <span className="text-display text-[10px] tracking-widest text-muted-foreground/60">
+                prop firm
+              </span>
+            </div>
 
-            {/* Firm-default row */}
             <div className="overflow-x-auto rounded-md border border-border bg-card/40">
               <table className="w-full text-mono text-xs">
                 <thead>
                   <tr className="text-display border-b border-border bg-secondary/20 text-[10px] tracking-widest text-muted-foreground">
                     <th className="px-3 py-2 text-left">instrument</th>
-                    <th className="px-3 py-2 text-right">fee · $ round-trip / contract</th>
+                    <th className="px-3 py-2 text-right">
+                      fee · $ round-trip / contract
+                    </th>
                     <th className="px-3 py-2"></th>
                   </tr>
                 </thead>
                 <tbody>
                   {sortedInstruments.map((inst) => {
-                    const existing = findFee(firm.id, inst.symbol, null);
+                    const existing = findFirmFee(firm.id, inst.symbol, null);
                     const isEditing =
                       edit &&
                       edit.firmId === firm.id &&
@@ -208,7 +223,12 @@ export function FeesTable({
                               size="sm"
                               variant="outline"
                               onClick={() =>
-                                startEdit(firm.id, inst.symbol, "", existing)
+                                startEdit({
+                                  firmId: firm.id,
+                                  instrument: inst.symbol,
+                                  stageType: "",
+                                  existing,
+                                })
                               }
                             >
                               {existing ? "edit" : "set"}
@@ -222,7 +242,6 @@ export function FeesTable({
               </table>
             </div>
 
-            {/* Stage overrides (e.g. Apex PA-Edge tier on sim_funded) */}
             <div>
               <div className="mb-2 flex items-center justify-between">
                 <div className="text-display text-[10px] tracking-widest text-muted-foreground">
@@ -232,7 +251,11 @@ export function FeesTable({
                   firmId={firm.id}
                   instruments={instruments}
                   onAdd={(args) =>
-                    startEdit(firm.id, args.instrument, args.stageType)
+                    startEdit({
+                      firmId: firm.id,
+                      instrument: args.instrument,
+                      stageType: args.stageType,
+                    })
                   }
                 />
               </div>
@@ -260,9 +283,7 @@ export function FeesTable({
                           (i) => i.symbol === f.instrument,
                         );
                         const isEditing =
-                          edit &&
-                          edit.rowId === f.id &&
-                          edit.stageType !== "";
+                          edit && edit.rowId === f.id && edit.stageType !== "";
                         return (
                           <tr
                             key={f.id}
@@ -327,12 +348,12 @@ export function FeesTable({
                                       size="sm"
                                       variant="outline"
                                       onClick={() =>
-                                        startEdit(
-                                          firm.id,
-                                          f.instrument,
-                                          f.stageType ?? "",
-                                          f,
-                                        )
+                                        startEdit({
+                                          firmId: firm.id,
+                                          instrument: f.instrument,
+                                          stageType: f.stageType ?? "",
+                                          existing: f,
+                                        })
                                       }
                                     >
                                       edit
@@ -360,6 +381,125 @@ export function FeesTable({
           </section>
         );
       })}
+
+      {/* ─── PA (personal) accounts ─── */}
+      {paAccounts.length > 0 && (
+        <div className="border-t border-border pt-6">
+          <h2 className="text-display mb-4 text-sm tracking-[0.3em] text-cyan-neon">
+            Personal Accounts
+          </h2>
+          {paAccounts.map((acct) => (
+            <section key={`pa-${acct.id}`} className="mb-6 space-y-3">
+              <div className="flex items-baseline gap-3">
+                <h3 className="text-display text-xs tracking-[0.3em] text-foreground">
+                  {acct.nickname}
+                </h3>
+                <span className="text-display text-[10px] tracking-widest text-muted-foreground/60">
+                  PA · your broker
+                </span>
+              </div>
+              <div className="overflow-x-auto rounded-md border border-border bg-card/40">
+                <table className="w-full text-mono text-xs">
+                  <thead>
+                    <tr className="text-display border-b border-border bg-secondary/20 text-[10px] tracking-widest text-muted-foreground">
+                      <th className="px-3 py-2 text-left">instrument</th>
+                      <th className="px-3 py-2 text-right">
+                        fee · $ round-trip / contract
+                      </th>
+                      <th className="px-3 py-2"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sortedInstruments.map((inst) => {
+                      const existing = findAcctFee(acct.id, inst.symbol);
+                      const isEditing =
+                        edit &&
+                        edit.accountId === acct.id &&
+                        edit.instrument === inst.symbol;
+                      return (
+                        <tr
+                          key={inst.symbol}
+                          className="border-t border-border/40 hover:bg-secondary/20"
+                        >
+                          <td className="px-3 py-1.5">
+                            <span className="text-foreground font-medium">
+                              {inst.symbol}
+                            </span>
+                            <span className="ml-2 text-[11px] text-muted-foreground">
+                              {inst.name}
+                            </span>
+                          </td>
+                          <td className="px-3 py-1.5 text-right">
+                            {isEditing ? (
+                              <div className="flex items-center justify-end gap-2">
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  value={edit!.value}
+                                  onChange={(e) =>
+                                    setEdit({ ...edit!, value: e.target.value })
+                                  }
+                                  className="h-7 w-24 text-right"
+                                />
+                                <Button
+                                  size="sm"
+                                  variant="neon"
+                                  onClick={saveEdit}
+                                  disabled={pending}
+                                >
+                                  save
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => setEdit(null)}
+                                  disabled={pending}
+                                >
+                                  cancel
+                                </Button>
+                              </div>
+                            ) : (
+                              <span
+                                className={cn(
+                                  "tabular-nums",
+                                  existing
+                                    ? "text-foreground"
+                                    : "text-muted-foreground/60",
+                                )}
+                              >
+                                {existing
+                                  ? `$${existing.feePerRtPerContract.toFixed(2)}`
+                                  : "—"}
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-3 py-1.5 text-right">
+                            {!isEditing && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() =>
+                                  startEdit({
+                                    accountId: acct.id,
+                                    instrument: inst.symbol,
+                                    existing,
+                                  })
+                                }
+                              >
+                                {existing ? "edit" : "set"}
+                              </Button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
