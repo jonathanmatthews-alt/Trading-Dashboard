@@ -4,6 +4,7 @@ import { schema } from "@/db/client";
 import { desc, eq, sql, and, gte, lte, inArray } from "drizzle-orm";
 import { computeTradeMetrics } from "./trade-math";
 import { computeAccountState, type AccountState } from "./rule-engine";
+import { loadFeeMap, FeeMap } from "./fees";
 import type {
   TradeEvent,
   TradeExecution,
@@ -14,6 +15,8 @@ import type {
   Mistake,
   Tendency,
 } from "@/db/schema";
+
+export { loadFeeMap, FeeMap };
 
 /* ─── Reference catalogues ─── */
 export async function listSetups(): Promise<Setup[]> {
@@ -167,8 +170,8 @@ export async function listTradeRows(opts?: {
   return rows.filter((r) => r.executions.length > 0);
 }
 
-export function metricsForRow(row: TradeRow) {
-  return computeTradeMetrics(row.event, row.executions, row.instrument);
+export function metricsForRow(row: TradeRow, feeMap: FeeMap) {
+  return computeTradeMetrics(row.event, row.executions, row.instrument, feeMap);
 }
 
 export async function listAllTransitions() {
@@ -179,6 +182,8 @@ export async function listAllTransitions() {
 /* ─── Account state for Risk dashboard ─── */
 export async function listAccountStates(todayIso: string): Promise<AccountState[]> {
   const accountsMeta = await listAccountsWithMeta();
+  const feeMap = await loadFeeMap();
+  const acctById = new Map(accountsMeta.map((m) => [m.account.id, m.account] as const));
   const allExecRows = await db
     .select({ ex: schema.tradeExecutions, ev: schema.tradeEvents })
     .from(schema.tradeExecutions)
@@ -195,18 +200,22 @@ export async function listAccountStates(todayIso: string): Promise<AccountState[
     .map(({ account, rule }) => {
       const executions = allExecRows
         .filter((r) => r.ex.accountId === account.id && r.ev != null)
-        .map((r) => ({
-          execution: r.ex,
-          event: r.ev as TradeEvent,
-          instrument: instrumentBySym.get((r.ev as TradeEvent).instrument)!,
-        }));
-      return computeAccountState(account, rule, executions, todayIso);
+        .map((r) => {
+          const acct = acctById.get(r.ex.accountId)!;
+          return {
+            execution: { ...r.ex, account: acct },
+            event: r.ev as TradeEvent,
+            instrument: instrumentBySym.get((r.ev as TradeEvent).instrument)!,
+          };
+        });
+      return computeAccountState(account, rule, executions, todayIso, feeMap);
     });
 }
 
-/* ─── Aggregates for Today / Performance ─── */
+/* ─── Aggregates for Today / Performance — uses NET PnL ─── */
 export async function getTodayPnl(todayIso: string) {
   const accountsMeta = await listAccountsWithMeta();
+  const feeMap = await loadFeeMap();
   const allExecRows = await db
     .select({ ex: schema.tradeExecutions, ev: schema.tradeEvents })
     .from(schema.tradeExecutions)
@@ -219,12 +228,10 @@ export async function getTodayPnl(todayIso: string) {
 
   let paPnl = 0;
   let propPnl = 0;
+  let paFees = 0;
+  let propFees = 0;
   const acctById = new Map(accountsMeta.map((a) => [a.account.id, a.account] as const));
   let trades = new Set<number>();
-  let wins = 0;
-  let losses = 0;
-  let rsum = 0;
-  let rcount = 0;
 
   for (const row of allExecRows) {
     if (!row.ev) continue;
@@ -238,29 +245,63 @@ export async function getTodayPnl(todayIso: string) {
       row.ev.direction === "long"
         ? row.ev.exitAvg - row.ev.entryAvg
         : row.ev.entryAvg - row.ev.exitAvg;
-    const pnl =
+    const gross =
       row.ex.overridePnlDollars != null
         ? row.ex.overridePnlDollars
         : pointDelta * instrument.pointValue * row.ex.contracts;
-    if (account.accountType === "pa") paPnl += pnl;
-    else propPnl += pnl;
+    const fee = feeMap.forExecution(account, row.ev.instrument) * row.ex.contracts;
+    const net = gross - fee;
+    if (account.accountType === "pa") {
+      paPnl += net;
+      paFees += fee;
+    } else {
+      propPnl += net;
+      propFees += fee;
+    }
     trades.add(row.ev.id);
   }
 
-  /* Per-event win/loss/R using master event stats (one count per event) */
+  /* Per-event win/loss/R using NET PnL aggregated across the event's executions. */
   const allEventsToday = await db
     .select()
     .from(schema.tradeEvents)
     .where(sql`substr(${schema.tradeEvents.exitTime}, 1, 10) = ${todayIso}`);
+  const eventIdsToday = allEventsToday.map((e) => e.id);
+  const execsByEvent = new Map<number, typeof allExecRows>();
+  for (const r of allExecRows) {
+    if (!r.ev || !eventIdsToday.includes(r.ev.id)) continue;
+    const list = execsByEvent.get(r.ev.id) ?? [];
+    list.push(r);
+    execsByEvent.set(r.ev.id, list);
+  }
+  let wins = 0;
+  let losses = 0;
+  let rsum = 0;
+  let rcount = 0;
   for (const ev of allEventsToday) {
     const instrument = instrumentBySym.get(ev.instrument);
     if (!instrument) continue;
     const pointDelta =
       ev.direction === "long" ? ev.exitAvg - ev.entryAvg : ev.entryAvg - ev.exitAvg;
-    if (pointDelta > 0) wins++;
-    else if (pointDelta < 0) losses++;
-    if (ev.initialStopPoints > 0) {
-      rsum += pointDelta / ev.initialStopPoints;
+    let net = 0;
+    let contracts = 0;
+    for (const r of execsByEvent.get(ev.id) ?? []) {
+      const acct = acctById.get(r.ex.accountId);
+      if (!acct) continue;
+      const gross =
+        r.ex.overridePnlDollars != null
+          ? r.ex.overridePnlDollars
+          : pointDelta * instrument.pointValue * r.ex.contracts;
+      const fee = feeMap.forExecution(acct, ev.instrument) * r.ex.contracts;
+      net += gross - fee;
+      contracts += r.ex.contracts;
+    }
+    if (net > 0) wins++;
+    else if (net < 0) losses++;
+    /* Net R per contract: net / (riskPerContract * contracts) */
+    const riskPerContract = ev.initialStopPoints * instrument.pointValue;
+    if (riskPerContract > 0 && contracts > 0) {
+      rsum += net / (riskPerContract * contracts);
       rcount++;
     }
   }
@@ -268,7 +309,10 @@ export async function getTodayPnl(todayIso: string) {
   return {
     paPnl,
     propPnl,
+    paFees,
+    propFees,
     totalPnl: paPnl + propPnl,
+    totalFees: paFees + propFees,
     tradeCount: allEventsToday.length,
     winRate: wins + losses > 0 ? wins / (wins + losses) : 0,
     avgR: rcount > 0 ? rsum / rcount : 0,

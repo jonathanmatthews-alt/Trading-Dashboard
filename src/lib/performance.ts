@@ -1,5 +1,6 @@
 import "server-only";
 import { db, schema } from "@/db/client";
+import { loadFeeMap } from "./fees";
 import {
   format,
   parseISO,
@@ -88,6 +89,7 @@ export async function getPerformance(preset: string): Promise<PerformanceData> {
   const acctMap = new Map(accounts.map((a) => [a.id, a] as const));
   const instruments = await db.select().from(schema.instruments);
   const instMap = new Map(instruments.map((i) => [i.symbol, i] as const));
+  const feeMap = await loadFeeMap();
 
   const setups = await db.select().from(schema.setups);
   const setupMap = new Map(setups.map((s) => [s.id, s] as const));
@@ -100,7 +102,7 @@ export async function getPerformance(preset: string): Promise<PerformanceData> {
   const tendencies = await db.select().from(schema.tendencies);
   const tendencyMap = new Map(tendencies.map((t) => [t.id, t] as const));
 
-  /* Compute per-event PnL first */
+  /* Compute per-event NET PnL (gross − fees) — every aggregate below is net. */
   const eventPnl = new Map<number, { pnl: number; pa: number; prop: number }>();
   for (const ev of inRange) {
     const inst = instMap.get(ev.instrument);
@@ -110,14 +112,16 @@ export async function getPerformance(preset: string): Promise<PerformanceData> {
     let pa = 0;
     let prop = 0;
     for (const ex of executions.filter((x) => x.tradeEventId === ev.id)) {
-      const pnl =
+      const acct = acctMap.get(ex.accountId);
+      if (!acct) continue;
+      const gross =
         ex.overridePnlDollars != null
           ? ex.overridePnlDollars
           : pointDelta * inst.pointValue * ex.contracts;
-      const acct = acctMap.get(ex.accountId);
-      if (!acct) continue;
-      if (acct.accountType === "pa") pa += pnl;
-      else prop += pnl;
+      const fee = feeMap.forExecution(acct, ev.instrument) * ex.contracts;
+      const net = gross - fee;
+      if (acct.accountType === "pa") pa += net;
+      else prop += net;
     }
     eventPnl.set(ev.id, { pnl: pa + prop, pa, prop });
   }

@@ -318,6 +318,45 @@ export const newsEvents = sqliteTable("news_events", {
   source: text("source", { enum: ["manual", "auto"] }).notNull().default("manual"),
 });
 
+/* ─── Fee schedules (per firm × instrument × optional stage) ─── */
+export const feeSchedules = sqliteTable(
+  "fee_schedules",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    firmId: integer("firm_id")
+      .notNull()
+      .references(() => firms.id, { onDelete: "cascade" }),
+    instrument: text("instrument")
+      .notNull()
+      .references(() => instruments.symbol),
+    /**
+     * Optional: when set, this fee applies only to accounts at this stage
+     * type on this firm. Lookup prefers stage-specific over firm-default
+     * (where stageType is null).
+     */
+    stageType: text("stage_type", {
+      enum: [
+        "eval",
+        "sim_funded",
+        "live_funded",
+        "payout_active",
+        "blown",
+        "archived",
+      ],
+    }),
+    /* Round-trip $ cost per contract (entry+exit combined). */
+    feePerRtPerContract: real("fee_per_rt_per_contract").notNull(),
+    notes: text("notes"),
+  },
+  (t) => ({
+    firmInstIdx: index("fee_schedules_firm_inst_idx").on(
+      t.firmId,
+      t.instrument,
+      t.stageType,
+    ),
+  }),
+);
+
 export const todoItems = sqliteTable("todo_items", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   title: text("title").notNull(),
@@ -429,3 +468,4 @@ export type Tendency = typeof tendencies.$inferSelect;
 export type RuleTemplate = typeof ruleTemplates.$inferSelect;
 export type Program = typeof programs.$inferSelect;
 export type Firm = typeof firms.$inferSelect;
+export type FeeSchedule = typeof feeSchedules.$inferSelect;

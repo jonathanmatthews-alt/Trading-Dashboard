@@ -52,20 +52,25 @@ export function TradeRowItem({ row, metrics, setups, mistakes, tendencies }: Pro
         <span
           className={cn(
             "text-mono font-medium",
-            metrics.pnlDollars > 0 && "text-gain",
-            metrics.pnlDollars < 0 && "text-loss",
+            metrics.netPnlDollars > 0 && "text-gain",
+            metrics.netPnlDollars < 0 && "text-loss",
           )}
+          title={
+            metrics.feesDollars > 0
+              ? `gross ${formatCurrency(metrics.pnlDollars, { sign: true })} · fees -${formatCurrency(metrics.feesDollars)}`
+              : undefined
+          }
         >
-          {formatCurrency(metrics.pnlDollars, { sign: true })}
+          {formatCurrency(metrics.netPnlDollars, { sign: true })}
         </span>
         <span
           className={cn(
             "text-mono",
-            metrics.pnlR > 0 && "text-gain",
-            metrics.pnlR < 0 && "text-loss",
+            metrics.netPnlR > 0 && "text-gain",
+            metrics.netPnlR < 0 && "text-loss",
           )}
         >
-          {formatR(metrics.pnlR)}
+          {formatR(metrics.netPnlR)}
         </span>
         <span className="text-mono text-muted-foreground">
           -{event.maePoints.toFixed(2)}

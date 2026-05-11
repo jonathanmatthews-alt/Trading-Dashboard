@@ -8,6 +8,7 @@ import {
   listAccountStates,
   listTradeRows,
   metricsForRow,
+  loadFeeMap,
 } from "@/lib/queries";
 import { db, schema } from "@/db/client";
 import { cn, formatCurrency, formatPercent, formatR } from "@/lib/utils";
@@ -23,10 +24,11 @@ function todayIso(): string {
 
 export default async function TodayPage() {
   const today = todayIso();
-  const [pnl, accountStates, recentRows] = await Promise.all([
+  const [pnl, accountStates, recentRows, feeMap] = await Promise.all([
     getTodayPnl(today),
     listAccountStates(today),
     listTradeRows({ fromDate: `${today}T00:00`, limit: 50 }),
+    loadFeeMap(),
   ]);
 
   const dailyLog = await db
@@ -108,7 +110,7 @@ export default async function TodayPage() {
       {/* Hero row */}
       <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-4">
         <Hero
-          label="Pnl Today"
+          label="Net PnL Today"
           big={formatCurrency(pnl.totalPnl, { sign: true })}
           bigClass={cn(
             pnl.totalPnl > 0 && "text-gain",
@@ -118,6 +120,14 @@ export default async function TodayPage() {
             <span className="text-mono text-xs text-muted-foreground">
               PA {formatCurrency(pnl.paPnl, { sign: true })} · Prop{" "}
               {formatCurrency(pnl.propPnl, { sign: true })}
+              {pnl.totalFees > 0 && (
+                <>
+                  {" · "}
+                  <span className="text-loss/70">
+                    fees -{formatCurrency(pnl.totalFees)}
+                  </span>
+                </>
+              )}
             </span>
           }
         />
@@ -202,7 +212,7 @@ export default async function TodayPage() {
           ) : (
             <ul className="divide-y divide-border/40">
               {recentRows.map((r) => {
-                const m = metricsForRow(r);
+                const m = metricsForRow(r, feeMap);
                 return (
                   <li key={r.event.id} className="flex items-center justify-between px-4 py-2">
                     <div className="flex items-center gap-3">
@@ -223,11 +233,11 @@ export default async function TodayPage() {
                     <span
                       className={cn(
                         "text-mono text-sm font-medium",
-                        m.pnlDollars > 0 && "text-gain",
-                        m.pnlDollars < 0 && "text-loss",
+                        m.netPnlDollars > 0 && "text-gain",
+                        m.netPnlDollars < 0 && "text-loss",
                       )}
                     >
-                      {formatCurrency(m.pnlDollars, { sign: true })}
+                      {formatCurrency(m.netPnlDollars, { sign: true })}
                     </span>
                   </li>
                 );

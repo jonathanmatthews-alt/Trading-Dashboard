@@ -3,13 +3,16 @@ import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { listTradeRows, metricsForRow } from "@/lib/queries";
+import { listTradeRows, metricsForRow, loadFeeMap } from "@/lib/queries";
 import { cn, formatCurrency, formatR } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
 export default async function JournalPage() {
-  const rows = await listTradeRows({ limit: 200 });
+  const [rows, feeMap] = await Promise.all([
+    listTradeRows({ limit: 200 }),
+    loadFeeMap(),
+  ]);
   const withNotes = rows.filter((r) => (r.event.note ?? "").trim().length > 0);
 
   return (
@@ -32,7 +35,7 @@ export default async function JournalPage() {
       ) : (
         <ul className="space-y-4">
           {withNotes.map((r) => {
-            const m = metricsForRow(r);
+            const m = metricsForRow(r, feeMap);
             return (
               <li key={r.event.id}>
                 <Card>

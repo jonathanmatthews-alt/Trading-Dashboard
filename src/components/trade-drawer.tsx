@@ -90,21 +90,27 @@ export function TradeDrawer({
               <span
                 className={cn(
                   "text-display text-2xl font-bold",
-                  metrics.pnlDollars > 0 && "text-gain",
-                  metrics.pnlDollars < 0 && "text-loss",
+                  metrics.netPnlDollars > 0 && "text-gain",
+                  metrics.netPnlDollars < 0 && "text-loss",
                 )}
               >
-                {formatCurrency(metrics.pnlDollars, { sign: true })}
+                {formatCurrency(metrics.netPnlDollars, { sign: true })}
               </span>
               <span
                 className={cn(
                   "text-mono text-sm",
-                  metrics.pnlR > 0 && "text-gain",
-                  metrics.pnlR < 0 && "text-loss",
+                  metrics.netPnlR > 0 && "text-gain",
+                  metrics.netPnlR < 0 && "text-loss",
                 )}
               >
-                {formatR(metrics.pnlR)}
+                {formatR(metrics.netPnlR)}
               </span>
+              {metrics.feesDollars > 0 && (
+                <span className="text-mono text-xs text-muted-foreground">
+                  gross {formatCurrency(metrics.pnlDollars, { sign: true })} −
+                  fees {formatCurrency(metrics.feesDollars)}
+                </span>
+              )}
             </div>
           </DrawerTitle>
           <div className="text-mono text-xs text-muted-foreground">
@@ -142,19 +148,18 @@ export function TradeDrawer({
                 <tr className="text-display text-[10px] text-muted-foreground tracking-widest">
                   <th className="text-left py-1">account</th>
                   <th className="text-right py-1">contracts</th>
-                  <th className="text-right py-1">$ pnl</th>
+                  <th className="text-right py-1">gross</th>
+                  <th className="text-right py-1">fees</th>
+                  <th className="text-right py-1">net</th>
                 </tr>
               </thead>
               <tbody>
                 {row.executions.map((ex) => {
-                  const pointDelta =
-                    row.event.direction === "long"
-                      ? row.event.exitAvg - row.event.entryAvg
-                      : row.event.entryAvg - row.event.exitAvg;
-                  const pnl =
-                    ex.overridePnlDollars != null
-                      ? ex.overridePnlDollars
-                      : pointDelta * row.instrument.pointValue * ex.contracts;
+                  const breakdown = metrics.byExecution[ex.id] ?? {
+                    gross: 0,
+                    fee: 0,
+                    net: 0,
+                  };
                   return (
                     <tr key={ex.id} className="border-t border-border/40">
                       <td className="py-1.5">{ex.account.nickname}</td>
@@ -162,11 +167,25 @@ export function TradeDrawer({
                       <td
                         className={cn(
                           "py-1.5 text-right",
-                          pnl > 0 && "text-gain",
-                          pnl < 0 && "text-loss",
+                          breakdown.gross > 0 && "text-gain",
+                          breakdown.gross < 0 && "text-loss",
                         )}
                       >
-                        {formatCurrency(pnl, { sign: true })}
+                        {formatCurrency(breakdown.gross, { sign: true })}
+                      </td>
+                      <td className="py-1.5 text-right text-muted-foreground">
+                        {breakdown.fee > 0
+                          ? `-${formatCurrency(breakdown.fee)}`
+                          : "—"}
+                      </td>
+                      <td
+                        className={cn(
+                          "py-1.5 text-right font-medium",
+                          breakdown.net > 0 && "text-gain",
+                          breakdown.net < 0 && "text-loss",
+                        )}
+                      >
+                        {formatCurrency(breakdown.net, { sign: true })}
                       </td>
                     </tr>
                   );

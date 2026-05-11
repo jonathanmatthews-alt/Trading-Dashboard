@@ -390,6 +390,54 @@ const RULE_TEMPLATES = (programIdByName: Map<string, number>): (typeof schema.ru
   },
 ];
 
+/* ───────── Fee schedules (per firm × instrument round-trip cost in $) ─────────
+   These are rough industry defaults. Edit on the Fees page once you have
+   real numbers from each firm. */
+const FEE_DEFAULTS_BY_FIRM: Record<string, Record<string, number>> = {
+  /* Apex Trader Funding — standard tier. MNQ confirmed $1.02 RT.
+     PA-Edge tier is cheaper (~$0.75 MNQ) — add a stage-specific override
+     row on /fees once you've mapped PA-Edge to a stage type. */
+  "Apex Trader Funding": {
+    ES: 4.0, NQ: 4.0, RTY: 4.0, YM: 4.0,
+    MES: 1.02, MNQ: 1.02, M2K: 1.02, MYM: 1.02,
+    CL: 4.0, MCL: 1.02,
+    GC: 4.0, MGC: 1.02,
+    SI: 4.0, ZB: 3.0, ZN: 3.0, "6E": 4.0, "6B": 4.0,
+  },
+  /* Tradeify */
+  "Tradeify": {
+    ES: 4.0, NQ: 4.0, RTY: 4.0, YM: 4.0,
+    MES: 0.74, MNQ: 0.74, M2K: 0.74, MYM: 0.74,
+    CL: 4.0, MCL: 0.74,
+    GC: 4.0, MGC: 0.74,
+    SI: 4.0, ZB: 3.0, ZN: 3.0, "6E": 4.0, "6B": 4.0,
+  },
+  /* Lucid Trading */
+  "Lucid Trading": {
+    ES: 4.0, NQ: 4.0, RTY: 4.0, YM: 4.0,
+    MES: 0.74, MNQ: 0.74, M2K: 0.74, MYM: 0.74,
+    CL: 4.0, MCL: 0.74,
+    GC: 4.0, MGC: 0.74,
+    SI: 4.0, ZB: 3.0, ZN: 3.0, "6E": 4.0, "6B": 4.0,
+  },
+  /* Take Profit Trader */
+  "Take Profit Trader": {
+    ES: 4.2, NQ: 4.2, RTY: 4.2, YM: 4.2,
+    MES: 0.8, MNQ: 0.8, M2K: 0.8, MYM: 0.8,
+    CL: 4.2, MCL: 0.8,
+    GC: 4.2, MGC: 0.8,
+    SI: 4.2, ZB: 3.2, ZN: 3.2, "6E": 4.2, "6B": 4.2,
+  },
+  /* Raen — placeholder values, edit on /fees */
+  "Raen": {
+    ES: 4.0, NQ: 4.0, RTY: 4.0, YM: 4.0,
+    MES: 0.74, MNQ: 0.74, M2K: 0.74, MYM: 0.74,
+    CL: 4.0, MCL: 0.74,
+    GC: 4.0, MGC: 0.74,
+    SI: 4.0, ZB: 3.0, ZN: 3.0, "6E": 4.0, "6B": 4.0,
+  },
+};
+
 /* ───────── Goals (sample process rules) ───────── */
 const GOALS: (typeof schema.goals.$inferInsert)[] = [
   { rule: "No trades after 11:30 ET", type: "mechanical", mechanicalDef: JSON.stringify({ kind: "no_trade_after", time: "11:30" }) },
@@ -463,6 +511,30 @@ async function seed() {
     inserted++;
   }
   console.log(`  · ${inserted} new rule templates (${existingTpls.length} already present)`);
+
+  /* Fee schedules — only insert defaults the user hasn't already customised. */
+  const existingFees = await db.select().from(schema.feeSchedules);
+  const seenFees = new Set(
+    existingFees.map((f) => `${f.firmId}:${f.instrument}:${f.stageType ?? ""}`),
+  );
+  let feesInserted = 0;
+  for (const [firmName, perInstrument] of Object.entries(FEE_DEFAULTS_BY_FIRM)) {
+    const firmId = firmIdByName.get(firmName);
+    if (firmId == null) continue;
+    for (const [instrument, fee] of Object.entries(perInstrument)) {
+      const key = `${firmId}:${instrument}:`;
+      if (seenFees.has(key)) continue;
+      await db.insert(schema.feeSchedules).values({
+        firmId,
+        instrument,
+        stageType: null,
+        feePerRtPerContract: fee,
+      });
+      seenFees.add(key);
+      feesInserted++;
+    }
+  }
+  console.log(`  · ${feesInserted} new fee rows (${existingFees.length} already present)`);
 
   const existingGoals = await db.select().from(schema.goals);
   if (existingGoals.length === 0) {

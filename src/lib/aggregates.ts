@@ -1,5 +1,6 @@
 import "server-only";
 import { db, schema } from "@/db/client";
+import { loadFeeMap } from "./fees";
 import {
   startOfMonth,
   endOfMonth,
@@ -9,9 +10,9 @@ import {
 
 export type DayAggregate = {
   date: string; // yyyy-MM-dd
-  pnl: number;
+  pnl: number; // NET PnL
   trades: number;
-  /* Sparkline points: [pnl_after_each_trade] in chronological order. */
+  /* Sparkline points: [cumulative NET pnl after each trade] in chronological order. */
   sparkline: number[];
 };
 
@@ -21,7 +22,8 @@ export async function getMonthAggregates(year: number, month0: number) {
   const fromIso = format(monthStart, "yyyy-MM-dd");
   const toIso = format(monthEnd, "yyyy-MM-dd");
 
-  /* Pull all events that exit within this month, plus their executions and instruments. */
+  const feeMap = await loadFeeMap();
+
   const events = await db.select().from(schema.tradeEvents);
   const inMonth = events.filter((e) => {
     const d = e.exitTime.slice(0, 10);
@@ -30,8 +32,13 @@ export async function getMonthAggregates(year: number, month0: number) {
 
   const executions = await db.select().from(schema.tradeExecutions);
   const instruments = await db.select().from(schema.instruments);
+  const accounts = await db.select().from(schema.accounts);
   const instMap = new Map(instruments.map((i) => [i.symbol, i] as const));
-  const execsByEvent = new Map<number, (typeof schema.tradeExecutions.$inferSelect)[]>();
+  const acctMap = new Map(accounts.map((a) => [a.id, a] as const));
+  const execsByEvent = new Map<
+    number,
+    (typeof schema.tradeExecutions.$inferSelect)[]
+  >();
   for (const ex of executions) {
     const list = execsByEvent.get(ex.tradeEventId) ?? [];
     list.push(ex);
@@ -44,7 +51,6 @@ export async function getMonthAggregates(year: number, month0: number) {
     aggByDate.set(key, { date: key, pnl: 0, trades: 0, sparkline: [] });
   }
 
-  /* Iterate events in chronological exit order so sparkline is meaningful. */
   const sortedEvents = [...inMonth].sort((a, b) =>
     a.exitTime.localeCompare(b.exitTime),
   );
@@ -57,17 +63,22 @@ export async function getMonthAggregates(year: number, month0: number) {
     const pointDelta =
       ev.direction === "long" ? ev.exitAvg - ev.entryAvg : ev.entryAvg - ev.exitAvg;
     const execs = execsByEvent.get(ev.id) ?? [];
-    let evtPnl = 0;
+    let evtNet = 0;
     for (const ex of execs) {
-      evtPnl +=
+      const gross =
         ex.overridePnlDollars != null
           ? ex.overridePnlDollars
           : pointDelta * inst.pointValue * ex.contracts;
+      const acct = acctMap.get(ex.accountId);
+      const fee = acct
+        ? feeMap.forExecution(acct, ev.instrument) * ex.contracts
+        : 0;
+      evtNet += gross - fee;
     }
-    agg.pnl += evtPnl;
+    agg.pnl += evtNet;
     agg.trades += 1;
     const last = agg.sparkline[agg.sparkline.length - 1] ?? 0;
-    agg.sparkline.push(last + evtPnl);
+    agg.sparkline.push(last + evtNet);
   }
 
   return Array.from(aggByDate.values());
@@ -83,7 +94,7 @@ export type DayDetail = {
     direction: "long" | "short";
     entryTime: string;
     exitTime: string;
-    pnlDollars: number;
+    pnlDollars: number; // NET
   }[];
   byAccount: { accountId: number; nickname: string; pnl: number; trades: number }[];
 };
@@ -96,6 +107,7 @@ export async function getDayDetail(dateIso: string): Promise<DayDetail> {
   if (eventIds.length === 0) {
     return { date: dateIso, paPnl: 0, propPnl: 0, trades: [], byAccount: [] };
   }
+  const feeMap = await loadFeeMap();
   const executions = await db.select().from(schema.tradeExecutions);
   const instruments = await db.select().from(schema.instruments);
   const accounts = await db.select().from(schema.accounts);
@@ -112,19 +124,21 @@ export async function getDayDetail(dateIso: string): Promise<DayDetail> {
     if (!inst) continue;
     const pointDelta =
       ev.direction === "long" ? ev.exitAvg - ev.entryAvg : ev.entryAvg - ev.exitAvg;
-    let evtPnl = 0;
+    let evtNet = 0;
     for (const ex of executions.filter((x) => x.tradeEventId === ev.id)) {
-      const pnl =
+      const acct = acctMap.get(ex.accountId);
+      if (!acct) continue;
+      const gross =
         ex.overridePnlDollars != null
           ? ex.overridePnlDollars
           : pointDelta * inst.pointValue * ex.contracts;
-      evtPnl += pnl;
-      const acct = acctMap.get(ex.accountId);
-      if (!acct) continue;
-      if (acct.accountType === "pa") paPnl += pnl;
-      else propPnl += pnl;
+      const fee = feeMap.forExecution(acct, ev.instrument) * ex.contracts;
+      const net = gross - fee;
+      evtNet += net;
+      if (acct.accountType === "pa") paPnl += net;
+      else propPnl += net;
       const cur = byAccountMap.get(acct.id) ?? { pnl: 0, trades: 0 };
-      cur.pnl += pnl;
+      cur.pnl += net;
       cur.trades += 1;
       byAccountMap.set(acct.id, cur);
     }
@@ -134,7 +148,7 @@ export async function getDayDetail(dateIso: string): Promise<DayDetail> {
       direction: ev.direction as "long" | "short",
       entryTime: ev.entryTime,
       exitTime: ev.exitTime,
-      pnlDollars: evtPnl,
+      pnlDollars: evtNet,
     });
   }
 

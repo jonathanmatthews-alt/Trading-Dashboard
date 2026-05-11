@@ -37,7 +37,10 @@ const SECTIONS: Section[] = [
   },
   {
     title: "Account",
-    items: [{ label: "Risk / Account State", href: "/risk" }],
+    items: [
+      { label: "Risk / Account State", href: "/risk" },
+      { label: "Fees", href: "/fees" },
+    ],
   },
   {
     title: "Macro",

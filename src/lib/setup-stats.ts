@@ -1,6 +1,7 @@
 import "server-only";
 import { db, schema } from "@/db/client";
 import { eq } from "drizzle-orm";
+import { loadFeeMap } from "./fees";
 
 export type SetupStats = {
   trades: number;
@@ -74,8 +75,11 @@ export async function getSetupStats(setupId: number): Promise<SetupStats> {
 
   const eventIds = events.map((e) => e.id);
   const executions = await db.select().from(schema.tradeExecutions);
+  const accounts = await db.select().from(schema.accounts);
+  const acctMap = new Map(accounts.map((a) => [a.id, a] as const));
   const instruments = await db.select().from(schema.instruments);
   const instMap = new Map(instruments.map((i) => [i.symbol, i] as const));
+  const feeMap = await loadFeeMap();
   const execsByEvent = new Map<number, typeof executions>();
   for (const ex of executions) {
     if (!eventIds.includes(ex.tradeEventId)) continue;
@@ -100,15 +104,25 @@ export async function getSetupStats(setupId: number): Promise<SetupStats> {
     if (!inst) continue;
     const pointDelta =
       ev.direction === "long" ? ev.exitAvg - ev.entryAvg : ev.entryAvg - ev.exitAvg;
-    let pnl = 0;
+    let net = 0;
+    let contracts = 0;
     for (const ex of execsByEvent.get(ev.id) ?? []) {
-      pnl +=
+      const acct = acctMap.get(ex.accountId);
+      if (!acct) continue;
+      const gross =
         ex.overridePnlDollars != null
           ? ex.overridePnlDollars
           : pointDelta * inst.pointValue * ex.contracts;
+      const fee = feeMap.forExecution(acct, ev.instrument) * ex.contracts;
+      net += gross - fee;
+      contracts += ex.contracts;
     }
+    const pnl = net;
     pnlTotal += pnl;
-    const r = ev.initialStopPoints > 0 ? pointDelta / ev.initialStopPoints : 0;
+    /* Net R: net $ / (riskPerContract × contracts) */
+    const riskPerContract = ev.initialStopPoints * inst.pointValue;
+    const r =
+      riskPerContract > 0 && contracts > 0 ? net / (riskPerContract * contracts) : 0;
     eventPnl.set(ev.id, { pnl, r });
     allRs.push(r);
     if (ev.initialStopPoints > 0) {

@@ -10,6 +10,7 @@ import {
   listSetups,
   listMistakes,
   listTendencies,
+  loadFeeMap,
 } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
@@ -22,13 +23,14 @@ export default async function TradesPage({
   const sp = await searchParams;
   const showLog = sp.new === "1";
 
-  const [rows, instruments, accounts, setups, mistakes, tendencies] = await Promise.all([
+  const [rows, instruments, accounts, setups, mistakes, tendencies, feeMap] = await Promise.all([
     listTradeRows({ limit: 200 }),
     listInstruments(),
     listActiveAccounts(),
     listSetups(),
     listMistakes(),
     listTendencies(),
+    loadFeeMap(),
   ]);
 
   const unenrichedCount = rows.filter((r) => !r.event.enriched).length;
@@ -70,7 +72,7 @@ export default async function TradesPage({
               <TradeRowItem
                 key={r.event.id}
                 row={r}
-                metrics={metricsForRow(r)}
+                metrics={metricsForRow(r, feeMap)}
                 setups={setups}
                 mistakes={mistakes}
                 tendencies={tendencies}
