@@ -10,7 +10,9 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate.ts",
     "db:seed": "tsx src/db/seed.ts",
-    "db:reset": "rm -f data.db && pnpm db:migrate && pnpm db:seed"
+    "db:reset": "rm -f data.db && pnpm db:migrate && pnpm db:seed",
+    "db:backup": "node scripts/backup-db.mjs",
+    "start:pm2": "pm2 start ecosystem.config.cjs && pm2 save"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.4",
