@@ -14,6 +14,10 @@ export type DayAggregate = {
   trades: number;
   /* Sparkline points: [cumulative NET pnl after each trade] in chronological order. */
   sparkline: number[];
+  /* Per-account breakdown (NET PnL) for the day drawer. */
+  byAccount: { accountId: number; nickname: string; pnl: number; trades: number }[];
+  /* News events on this date. Used to flag cells + populate drawer. */
+  news: { title: string; impact: "high" | "medium" | "low"; time: string | null }[];
 };
 
 export async function getMonthAggregates(year: number, month0: number) {
@@ -45,11 +49,29 @@ export async function getMonthAggregates(year: number, month0: number) {
     execsByEvent.set(ex.tradeEventId, list);
   }
 
+  const newsRows = await db.select().from(schema.newsEvents);
+  const newsByDate = new Map<string, DayAggregate["news"]>();
+  for (const n of newsRows) {
+    if (n.date < fromIso || n.date > toIso) continue;
+    const list = newsByDate.get(n.date) ?? [];
+    list.push({ title: n.title, impact: n.impact, time: n.time });
+    newsByDate.set(n.date, list);
+  }
+
   const aggByDate = new Map<string, DayAggregate>();
   for (const day of eachDayOfInterval({ start: monthStart, end: monthEnd })) {
     const key = format(day, "yyyy-MM-dd");
-    aggByDate.set(key, { date: key, pnl: 0, trades: 0, sparkline: [] });
+    aggByDate.set(key, {
+      date: key,
+      pnl: 0,
+      trades: 0,
+      sparkline: [],
+      byAccount: [],
+      news: newsByDate.get(key) ?? [],
+    });
   }
+  /* Per-day, per-account running totals built while walking executions. */
+  const byAccountByDate = new Map<string, Map<number, { pnl: number; trades: number }>>();
 
   const sortedEvents = [...inMonth].sort((a, b) =>
     a.exitTime.localeCompare(b.exitTime),
@@ -64,6 +86,7 @@ export async function getMonthAggregates(year: number, month0: number) {
       ev.direction === "long" ? ev.exitAvg - ev.entryAvg : ev.entryAvg - ev.exitAvg;
     const execs = execsByEvent.get(ev.id) ?? [];
     let evtNet = 0;
+    const acctMapForDate = byAccountByDate.get(date) ?? new Map();
     for (const ex of execs) {
       const gross =
         ex.overridePnlDollars != null
@@ -73,12 +96,34 @@ export async function getMonthAggregates(year: number, month0: number) {
       const fee = acct
         ? feeMap.forExecution(acct, ev.instrument) * ex.contracts
         : 0;
-      evtNet += gross - fee;
+      const exNet = gross - fee;
+      evtNet += exNet;
+      if (acct) {
+        const prev = acctMapForDate.get(acct.id) ?? { pnl: 0, trades: 0 };
+        prev.pnl += exNet;
+        prev.trades += 1;
+        acctMapForDate.set(acct.id, prev);
+      }
     }
+    byAccountByDate.set(date, acctMapForDate);
     agg.pnl += evtNet;
     agg.trades += 1;
     const last = agg.sparkline[agg.sparkline.length - 1] ?? 0;
     agg.sparkline.push(last + evtNet);
+  }
+
+  /* Flatten byAccount into the aggregate, sorted by net contribution descending. */
+  for (const [date, perAcct] of byAccountByDate) {
+    const agg = aggByDate.get(date);
+    if (!agg) continue;
+    agg.byAccount = Array.from(perAcct.entries())
+      .map(([accountId, v]) => ({
+        accountId,
+        nickname: acctMap.get(accountId)?.nickname ?? `#${accountId}`,
+        pnl: v.pnl,
+        trades: v.trades,
+      }))
+      .sort((a, b) => b.pnl - a.pnl);
   }
 
   return Array.from(aggByDate.values());

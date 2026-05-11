@@ -121,6 +121,9 @@ function AccountDrawer({
     initial?.startingBalance?.toString() ?? "",
   );
   const [notes, setNotes] = useState(initial?.notes ?? "");
+  const [sierraAccountId, setSierraAccountId] = useState(
+    initial?.sierraAccountId ?? "",
+  );
 
   /* Inline new-firm / new-program forms */
   const [newFirmName, setNewFirmName] = useState("");
@@ -195,6 +198,7 @@ function AccountDrawer({
           programId: accountType === "pa" ? null : programId,
           currentStage: accountType === "pa" ? null : currentStage,
           startingBalance: Number(startingBalance),
+          sierraAccountId: sierraAccountId.trim() || null,
           notes: notes || null,
         });
         router.refresh();
@@ -343,12 +347,18 @@ function AccountDrawer({
             </FormSection>
           )}
 
-          <FormSection title="Balance / Notes">
+          <FormSection title="Balance / Import / Notes">
             <NumberField
               label="Starting balance ($)"
               value={startingBalance}
               onChange={setStartingBalance}
               placeholder="e.g. 100000"
+            />
+            <TextField
+              label="Sierra Chart Account ID (optional)"
+              value={sierraAccountId}
+              onChange={setSierraAccountId}
+              placeholder="e.g. E6151 — used to route Sierra TSV rows"
             />
             <TextArea
               label="Notes (optional)"

@@ -177,6 +177,9 @@ export const accounts = sqliteTable(
     closedAt: text("closed_at"),
     /* Per-account rule overrides (JSON blob keyed by template field name) */
     ruleOverrides: text("rule_overrides"),
+    /* Sierra Chart's account identifier (e.g. "E6151"). Used by the CSV
+       importer to route per-row from a multi-account Sierra export. */
+    sierraAccountId: text("sierra_account_id"),
     notes: text("notes"),
   },
   (t) => ({

@@ -29,6 +29,13 @@
       "when": 1778650000000,
       "tag": "0003_premarket_notes",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1778700000000,
+      "tag": "0004_sierra_account_id",
+      "breakpoints": true
     }
   ]
 }

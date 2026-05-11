@@ -154,6 +154,7 @@ const AccountSchema = z.object({
   programId: z.coerce.number().int().positive().nullable().optional(),
   currentStage: z.enum(STAGE_TYPES).nullable().optional(),
   startingBalance: z.coerce.number(),
+  sierraAccountId: z.string().trim().max(120).nullable().optional(),
   notes: z.string().nullable().optional(),
 });
 
@@ -185,6 +186,7 @@ export async function upsertAccount(input: unknown) {
     currentStage: data.accountType === "pa" ? null : (data.currentStage ?? null),
     ruleTemplateId,
     startingBalance: data.startingBalance,
+    sierraAccountId: data.sierraAccountId?.trim() || null,
     notes: data.notes ?? null,
   };
 

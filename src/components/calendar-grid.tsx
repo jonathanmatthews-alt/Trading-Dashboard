@@ -91,13 +91,18 @@ export function CalendarGrid({
                   hasTrades && negative && "bg-loss/5",
                 )}
               >
-                <div
-                  className={cn(
-                    "text-display text-[10px] tracking-widest",
-                    today ? "text-neon" : "text-muted-foreground",
+                <div className="flex items-center justify-between">
+                  <div
+                    className={cn(
+                      "text-display text-[10px] tracking-widest",
+                      today ? "text-neon" : "text-muted-foreground",
+                    )}
+                  >
+                    {format(day, "d")}
+                  </div>
+                  {agg && agg.news.length > 0 && (
+                    <NewsDot impact={highestImpact(agg.news)} count={agg.news.length} />
                   )}
-                >
-                  {format(day, "d")}
                 </div>
                 {hasTrades && agg && (
                   <>
@@ -122,6 +127,36 @@ export function CalendarGrid({
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function highestImpact(
+  news: { impact: "high" | "medium" | "low" }[],
+): "high" | "medium" | "low" {
+  if (news.some((n) => n.impact === "high")) return "high";
+  if (news.some((n) => n.impact === "medium")) return "medium";
+  return "low";
+}
+
+function NewsDot({
+  impact,
+  count,
+}: {
+  impact: "high" | "medium" | "low";
+  count: number;
+}) {
+  return (
+    <span
+      title={`${count} news event${count === 1 ? "" : "s"} (max ${impact} impact)`}
+      className={cn(
+        "inline-flex items-center justify-center rounded-full text-[8px] font-bold",
+        impact === "high" && "h-3.5 w-3.5 bg-loss/80 text-background",
+        impact === "medium" && "h-3.5 w-3.5 bg-warn/80 text-background",
+        impact === "low" && "h-3.5 w-3.5 bg-muted-foreground/40 text-background",
+      )}
+    >
+      {count}
+    </span>
   );
 }
 
@@ -217,25 +252,103 @@ function DaySideDrawer({
             {aggregate.trades} trade{aggregate.trades === 1 ? "" : "s"}
           </div>
         </DrawerHeader>
-        <DrawerBody className="space-y-4">
+        <DrawerBody className="space-y-6">
+          {/* Intraday equity */}
           <div>
             <div className="text-display text-[10px] tracking-widest text-muted-foreground mb-2">
               intraday equity
             </div>
             <BigSparkline points={aggregate.sparkline} positive={aggregate.pnl >= 0} />
           </div>
-          <Link
-            href={`/trades?date=${dateIso}`}
-            className="text-display block text-[11px] tracking-widest text-neon hover:underline"
-          >
-            see all {aggregate.trades} trades →
-          </Link>
-          <Link
-            href={`/daily-log?date=${dateIso}`}
-            className="text-display block text-[11px] tracking-widest text-neon hover:underline"
-          >
-            open daily log entry →
-          </Link>
+
+          {/* Per-account breakdown */}
+          {aggregate.byAccount.length > 0 && (
+            <div>
+              <div className="text-display mb-2 text-[10px] tracking-widest text-muted-foreground">
+                per account · net
+              </div>
+              <table className="w-full text-mono text-xs">
+                <thead>
+                  <tr className="text-display border-b border-border/40 text-[10px] tracking-widest text-muted-foreground">
+                    <th className="py-1 text-left">account</th>
+                    <th className="py-1 text-right">trades</th>
+                    <th className="py-1 text-right">net pnl</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {aggregate.byAccount.map((a) => (
+                    <tr key={a.accountId} className="border-b border-border/20">
+                      <td className="py-1.5 text-foreground">{a.nickname}</td>
+                      <td className="py-1.5 text-right text-muted-foreground">
+                        {a.trades}
+                      </td>
+                      <td
+                        className={cn(
+                          "py-1.5 text-right tabular-nums",
+                          a.pnl > 0 && "text-gain",
+                          a.pnl < 0 && "text-loss",
+                        )}
+                      >
+                        {formatCurrency(a.pnl, { sign: true })}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* News events */}
+          {aggregate.news.length > 0 && (
+            <div>
+              <div className="text-display mb-2 text-[10px] tracking-widest text-muted-foreground">
+                news · {aggregate.news.length} event
+                {aggregate.news.length === 1 ? "" : "s"}
+              </div>
+              <ul className="space-y-1">
+                {aggregate.news.map((n, i) => (
+                  <li
+                    key={i}
+                    className="grid grid-cols-[60px_60px_1fr] items-center gap-3 border-b border-border/20 py-1"
+                  >
+                    <span
+                      className={cn(
+                        "rounded-sm border px-1.5 py-0.5 text-center text-[10px] uppercase tracking-wider",
+                        n.impact === "high" &&
+                          "border-loss/50 bg-loss/10 text-loss",
+                        n.impact === "medium" &&
+                          "border-warn/50 bg-warn/10 text-warn",
+                        n.impact === "low" &&
+                          "border-border bg-secondary/30 text-muted-foreground",
+                      )}
+                    >
+                      {n.impact}
+                    </span>
+                    <span className="text-mono text-xs text-muted-foreground">
+                      {n.time ?? ""}
+                    </span>
+                    <span className="text-sm text-foreground">{n.title}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Links */}
+          <div className="space-y-1 border-t border-border/40 pt-3">
+            <Link
+              href={`/trades?date=${dateIso}`}
+              className="text-display block text-[11px] tracking-widest text-neon hover:underline"
+            >
+              see all {aggregate.trades} trades →
+            </Link>
+            <Link
+              href={`/daily-log?date=${dateIso}`}
+              className="text-display block text-[11px] tracking-widest text-neon hover:underline"
+            >
+              open daily log entry →
+            </Link>
+          </div>
         </DrawerBody>
       </DrawerContent>
     </Drawer>

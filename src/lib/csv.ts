@@ -82,6 +82,12 @@ export type BrokerPreset = {
   label: string;
   /** Map our FieldId → exact column header in the broker's CSV. */
   mapping: Partial<Record<FieldId, string>>;
+  /**
+   * Name of the column containing the broker's per-row account identifier.
+   * Sierra puts this in "Account" (e.g. "E6151"). When set, the importer
+   * builds a per-row routing table rather than using a single picked account.
+   */
+  sierraAccountColumn?: string;
   /** Transforms applied to row values before sending to the server. */
   transforms?: {
     symbolRoot?: boolean;
@@ -117,6 +123,7 @@ export const BROKER_PRESETS: BrokerPreset[] = [
          so we don't override and just let trade-math derive it. Means a
          future fees pipeline can layer on cleanly. */
     },
+    sierraAccountColumn: "Account",
     transforms: {
       symbolRoot: true,
       sierraDatetime: true,
