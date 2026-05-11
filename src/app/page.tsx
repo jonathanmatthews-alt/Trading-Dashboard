@@ -12,6 +12,8 @@ import {
 import { db, schema } from "@/db/client";
 import { cn, formatCurrency, formatPercent, formatR } from "@/lib/utils";
 import { eq } from "drizzle-orm";
+import { ComplianceList } from "@/components/compliance-list";
+import { evaluateGoalsForDate } from "@/lib/goal-evaluator";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +35,11 @@ export default async function TodayPage() {
     .where(eq(schema.dailyLogs.date, today))
     .limit(1);
   const log = dailyLog[0] ?? null;
+
+  /* Evaluate mechanical goals on-render so the page is always fresh, even
+     if the user navigated here without logging a trade. Cheap: it runs a few
+     SELECTs and DELETE+INSERTs proportional to the goal count. */
+  await evaluateGoalsForDate(today);
 
   const goals = await db
     .select()
@@ -244,27 +251,29 @@ export default async function TodayPage() {
               </Link>
             </div>
           ) : (
-            <ul className="space-y-1.5">
-              {goals.map((g) => {
-                const c = checkByGoal.get(g.id);
-                const passed = c?.passed === true;
-                const failed = c?.passed === false;
-                return (
-                  <li key={g.id} className="flex items-center gap-2 text-sm">
-                    <span
-                      className={cn(
-                        "inline-block h-2 w-2 rounded-full",
-                        passed && "bg-gain",
-                        failed && "bg-loss",
-                        !passed && !failed && "bg-muted-foreground/40",
-                      )}
-                    />
-                    <span className="text-mono">{g.rule}</span>
-                    <Badge variant="muted">{g.type}</Badge>
-                  </li>
-                );
-              })}
-            </ul>
+            <ComplianceList
+              date={today}
+              goals={goals.map((g) => ({
+                id: g.id,
+                rule: g.rule,
+                type: g.type as "mechanical" | "reflective",
+              }))}
+              checks={
+                new Map(
+                  checks.map(
+                    (c) =>
+                      [
+                        c.goalId,
+                        {
+                          goalId: c.goalId,
+                          passed: c.passed,
+                          autoChecked: c.autoChecked,
+                        },
+                      ] as const,
+                  ),
+                )
+              }
+            />
           )}
         </CardContent>
       </Card>

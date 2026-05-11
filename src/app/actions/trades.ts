@@ -4,6 +4,7 @@ import { db, schema } from "@/db/client";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { evaluateGoalsForDate } from "@/lib/goal-evaluator";
 
 const FastLogSchema = z.object({
   instrument: z.string().min(1),
@@ -51,11 +52,14 @@ export async function logFastTrade(input: unknown) {
     })),
   );
 
+  await evaluateGoalsForDate(data.entryTime.slice(0, 10));
+
   revalidatePath("/trades");
   revalidatePath("/risk");
   revalidatePath("/");
   revalidatePath("/calendar");
   revalidatePath("/performance");
+  revalidatePath("/goals");
   return { id: event.id };
 }
 
@@ -104,15 +108,37 @@ export async function enrichTrade(input: unknown) {
     );
   }
 
+  /* Mistake/tendency tag changes affect mechanical goal evaluation. */
+  const [event] = await db
+    .select({ entryTime: schema.tradeEvents.entryTime })
+    .from(schema.tradeEvents)
+    .where(eq(schema.tradeEvents.id, data.tradeEventId))
+    .limit(1);
+  if (event) {
+    await evaluateGoalsForDate(event.entryTime.slice(0, 10));
+  }
+
   revalidatePath("/trades");
   revalidatePath("/journal");
+  revalidatePath("/goals");
+  revalidatePath("/");
   return { ok: true };
 }
 
 export async function deleteTrade(tradeEventId: number) {
+  /* Capture the date before deletion so we can re-evaluate after. */
+  const [event] = await db
+    .select({ entryTime: schema.tradeEvents.entryTime })
+    .from(schema.tradeEvents)
+    .where(eq(schema.tradeEvents.id, tradeEventId))
+    .limit(1);
   await db.delete(schema.tradeEvents).where(eq(schema.tradeEvents.id, tradeEventId));
+  if (event) {
+    await evaluateGoalsForDate(event.entryTime.slice(0, 10));
+  }
   revalidatePath("/trades");
   revalidatePath("/risk");
   revalidatePath("/");
+  revalidatePath("/goals");
   return { ok: true };
 }

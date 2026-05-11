@@ -3,13 +3,18 @@ import { TwoPane } from "@/components/two-pane";
 import { Badge } from "@/components/ui/badge";
 import { listSetups } from "@/lib/queries";
 import { SetupsAddButton, SetupEditButton } from "@/components/setups-controls";
+import { getSetupStats } from "@/lib/setup-stats";
+import { SetupStatsPanel } from "@/components/setup-stats-panel";
 
 export const dynamic = "force-dynamic";
 
 export default async function SetupsPage() {
   const setups = await listSetups();
   const categories = Array.from(new Set(setups.map((s) => s.category)));
-  const items = setups.map((s) => ({
+  const allStats = await Promise.all(setups.map((s) => getSetupStats(s.id)));
+  const items = setups.map((s, idx) => {
+    const stats = allStats[idx];
+    return {
     id: s.id,
     name: s.name,
     category: s.category,
@@ -39,16 +44,13 @@ export default async function SetupsPage() {
           <DescField label="Allowed contexts" value={s.planContexts} />
         </SetupSection>
 
-        <SetupSection title="Stats">
-          <div className="text-sm text-muted-foreground">
-            Per-setup stats panel (WR, expectancy, MAE/MFE distributions,
-            monthly PnL, equity curve) populates as you tag trades with this
-            setup.
-          </div>
+        <SetupSection title="Stats · linked trades">
+          <SetupStatsPanel stats={stats} />
         </SetupSection>
       </div>
     ),
-  }));
+  };
+  });
 
   return (
     <div className="mx-auto max-w-7xl">
