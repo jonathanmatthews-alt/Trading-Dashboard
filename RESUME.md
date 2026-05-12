@@ -30,14 +30,15 @@ scripts\setup-windows.cmd
 ```
 
 That single script:
-- installs `pnpm`, `pm2`, `pm2-windows-startup` if missing
-- runs migrations
-- seeds if `data.db` doesn't yet exist
-- builds the production bundle
+- installs `pm2` + `pm2-windows-startup` globally if missing
+- `npm install` (npm, NOT pnpm — pnpm v10+ silently blocks the
+  better-sqlite3 native-binding postinstall and breaks the DB)
+- verifies the better-sqlite3 `.node` binding actually exists
+- runs migrations, seeds if `data.db` doesn't yet exist, builds
 - registers + starts the pm2 process, saves the dump, installs boot
   resurrection
 - creates a daily Task Scheduler job `TradingDashboardBackup` that runs
-  `pnpm db:backup` at 23:55 (logs to `logs\backup.log`)
+  `npm run db:backup` at 23:55 (logs to `logs\backup.log`)
 
 Open http://localhost:3000.
 
@@ -46,13 +47,17 @@ Open http://localhost:3000.
 Paste the exact error message and resume. Most likely failure: Node not
 on PATH (reopen cmd) or corporate antivirus blocking npm globals.
 
+**Do NOT use pnpm to install on this project — it will undo npm's work.**
+pnpm-lock.yaml stays in the repo as a developer reference but is not
+the canonical install path on Windows.
+
 Manual fallback (paste line-by-line from repo root):
 ```cmd
-npm install -g pnpm pm2 pm2-windows-startup
-pnpm install
-pnpm db:migrate
-pnpm db:seed
-pnpm build
+npm install -g pm2 pm2-windows-startup
+npm install
+npm run db:migrate
+npm run db:seed
+npm run build
 pm2 start ecosystem.config.cjs
 pm2 save
 pm2-startup install
@@ -64,7 +69,7 @@ pm2-startup install
 pm2 status                       :: is it running?
 pm2 logs trading-dashboard       :: live log tail
 pm2 restart trading-dashboard    :: after pulling new code
-pnpm db:backup                   :: on-demand backup now
+npm run db:backup                :: on-demand backup now
 schtasks /Run /TN TradingDashboardBackup   :: trigger nightly backup now
 ```
 
@@ -72,9 +77,9 @@ schtasks /Run /TN TradingDashboardBackup   :: trigger nightly backup now
 
 ```cmd
 git pull
-pnpm install
-pnpm db:migrate
-pnpm build
+npm install
+npm run db:migrate
+npm run build
 pm2 restart trading-dashboard
 ```
 
