@@ -58,7 +58,7 @@ export function Sidebar() {
     <aside className="sticky top-0 h-screen w-56 shrink-0 overflow-y-auto border-r bg-card/50 backdrop-blur">
       <div className="flex flex-col gap-1 p-4">
         <div className="text-display text-xl text-orange-neon font-bold leading-none">
-          TIM DASH
+          JM DASH
         </div>
         <div className="text-display text-[10px] text-muted-foreground tracking-[0.3em]">
           2026 · ROLLING

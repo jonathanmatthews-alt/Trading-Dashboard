@@ -4,7 +4,7 @@
 
 @layer base {
   :root {
-    /* TIM DASH dark/neon palette — dark navy + cyan + orange */
+    /* JM DASH dark/neon palette — dark navy + cyan + orange */
     --background: 222 47% 6%;
     --foreground: 210 40% 96%;
 
@@ -52,7 +52,7 @@
     font-family: var(--font-sans);
   }
 
-  /* Scanline grid background reminiscent of TIM DASH */
+  /* Scanline grid background reminiscent of JM DASH */
   body {
     background-image:
       linear-gradient(hsl(var(--border) / 0.15) 1px, transparent 1px),

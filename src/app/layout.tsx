@@ -4,7 +4,7 @@ import { Sidebar } from "@/components/sidebar";
 import { TopBar } from "@/components/topbar";
 
 export const metadata: Metadata = {
-  title: "TIM DASH 2026 — Trading Dashboard",
+  title: "JM DASH 2026 — Trading Dashboard",
   description: "Personal trading dashboard. PA + Prop. Futures.",
 };
 
