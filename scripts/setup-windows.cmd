@@ -44,8 +44,12 @@ echo [OK] pm2 ready
 echo.
 
 REM ── 3. App install + migrate + build ────────────────────────────────
-echo Installing dependencies...
-call pnpm install --frozen-lockfile || goto :fail
+REM Use npm for install only — pnpm v10+ silently blocks better-sqlite3's
+REM postinstall script which fetches the prebuilt native binding. npm has
+REM no such gating, so the binding is reliably downloaded. We keep pnpm
+REM for migrate/seed/build because those just run TS scripts.
+echo Installing dependencies (via npm to ensure native bindings build)...
+call npm install --no-audit --no-fund --loglevel=error || goto :fail
 
 echo Running migrations...
 call pnpm db:migrate || goto :fail

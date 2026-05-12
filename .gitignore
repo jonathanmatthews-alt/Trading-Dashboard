@@ -10,3 +10,5 @@ backups/
 logs/
 .DS_Store
 .vercel
+# npm-generated lockfile when installing via npm (we ship pnpm-lock.yaml as canonical)
+package-lock.json
