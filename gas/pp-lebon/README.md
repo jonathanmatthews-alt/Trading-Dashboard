@@ -1,90 +1,83 @@
 # PP-Lebon — Google Sheets dashboard
 
-Google Apps Script port of the **PP-Lebon** TradingView Pine Script:
-extension via EMA-deviation STD bands + compression via BBW squeeze, across a
-user-defined list of tickers.
+Google Apps Script port of the **PP-Lebon** TradingView Pine Script. Surfaces
+exactly the two signals the script produces:
 
-## Tabs
+- **Extension** — deviation from EMA crosses `±STD_Level × STDEV(deviation)`
+  - above the band → "Extension Above" (sell-side) → **red row**
+  - below the band → "Extension Below" (buy-side) → **blue row**
+- **Compression** — BBW squeeze below `SMA(BBW) − BB_Std × STDEV(BBW)`
+  → **yellow row**
 
-- **Summary** — one row per ticker. Columns: Symbol, Score, Current Close,
-  Current Price, then price bands at STD multiples −2 … +2.
-- **Model** — one column per ticker. All Pine-Script calculations
-  (EMA center, STD center, STD of deviation, STD-level price grid, BBW
-  compression, buy/sell signals) plus the GOOGLEFINANCE-spilled close history
-  starting at row 39.
-- **Settings** — named ranges for the Pine Script parameters
-  (`MA_Period`, `STD_Lookback`, `STD_Level`, `BB_Length`, `BB_Mult`, `BB_Std`,
-  `BB_Lookback`).
+## Files
 
-## Deploy
+- **`Code.gs`** — everything: menu wiring, sheet setup, ticker management,
+  signal computation. Single file, single paste per update.
+- **`appsscript.json`** — manifest (OAuth scopes).
 
-This is a **container-bound** Apps Script project. There's no script ID in
-this repo — you push it once per Sheet using
-[`clasp`](https://github.com/google/clasp):
+> Earlier versions split into `Setup.gs` / `Tickers.gs` / `Formulas.gs`.
+> Those have been consolidated; delete them from your Apps Script project
+> after pasting the new `Code.gs`.
 
+## How to use
+
+1. **Setup**: PP-Lebon → Setup Workbook (seeds MSFT).
+2. **Add a ticker**: just type the symbol into Summary column A. An onEdit
+   trigger registers the ticker on the Model tab and writes the
+   `GOOGLEFINANCE` formula.
+3. **Refresh**: PP-Lebon → Refresh All. GOOGLEFINANCE history needs ~30 s
+   to populate after a new ticker; once it's there, Refresh computes EMA,
+   STD, signals, and the Status string.
+4. **Remove**: PP-Lebon → Remove Ticker… (or just delete the row on Summary
+   and the corresponding column on Model).
+
+## Summary tab columns
+
+| Col | Header | Source |
+|-----|--------|--------|
+| A | Symbol | you type it |
+| B | Price | `GOOGLEFINANCE(symbol,"price")` (live, ~20 min lag) |
+| C | Close | last bar's close from Model |
+| D | Score | signed STD distance from band centre |
+| E | Status | "Extension Above" / "Extension Below" / "Compression" / "Neutral" |
+| F | As Of | time the Model row was last refreshed |
+
+**Conditional formatting** (row-wide):
+- Yellow when Status contains "Compression"
+- Blue when Status contains "Below"
+- Red when Status contains "Above"
+- Score cell bold red ≥ +1.5, bold blue ≤ −1.5
+
+## Model tab (per-column, one ticker each)
+
+Inputs at the top (Ticker / Start Date / Interval), then computed scalars
+(EMA Center, STD Center, STD, Score, 52-week stats, Extension Above,
+Extension Below, Compression, Status). The `GOOGLEFINANCE` formula spills
+historical closes starting at row 21.
+
+All scalars are written by JavaScript on Refresh — no fragile sheet array
+formulas. That means signals don't auto-update on every recalc; click
+Refresh All when you want a fresh read.
+
+## Architecture & updates
+
+This is a **single-file Apps Script** project. To update:
+1. Pull the latest `Code.gs` from this repo (or copy from GitHub web UI).
+2. Paste over the contents of `Code.gs` in your Apps Script project.
+3. Save. Reload the Sheet for menu changes to take effect.
+
+For a fully automated push, install [clasp](https://github.com/google/clasp)
+locally:
 ```bash
-# one-time
 npm i -g @google/clasp
 clasp login
-
-# in a fresh Google Sheet, Extensions → Apps Script. Copy the script ID from
-# Project Settings, then:
 cd gas/pp-lebon
-cp .clasp.json.example .clasp.json    # then paste your scriptId
+cp .clasp.json.example .clasp.json   # paste your Script ID
 clasp push -f
 ```
 
-Reload the Sheet → a **PP-Lebon** menu appears via `onOpen`.
+## Settings
 
-## Use
-
-1. **PP-Lebon → Setup Workbook** — builds Summary / Model / Settings tabs and
-   seeds `MSFT` as the first ticker.
-2. **PP-Lebon → Reset Workbook** — wipes the three tabs and rebuilds. Use after
-   pulling schema changes from this repo.
-3. **PP-Lebon → Add Ticker…** — enter `LYC`, `MP`, etc. A column is appended to
-   Model and a row to Summary; GOOGLEFINANCE populates close history within
-   ~30 s.
-4. **PP-Lebon → Rebuild Ticker…** — re-applies the latest formulas to an
-   existing ticker column, keeping its Start Date / Interval.
-5. **PP-Lebon → Remove Ticker…** — clears the Model column and deletes the
-   Summary row.
-6. **PP-Lebon → Refresh** — calls `SpreadsheetApp.flush()`. GOOGLEFINANCE
-   prices update on Google's own ~20 min cadence; this does not bypass that.
-
-## Score interpretation
-
-- `Score = (Current Price − EMA Center − STD Center) / STD` — signed # of
-  standard deviations from the deviation-band center (Pine `_stdCenter`
-  added back to the EMA).
-- **Sign** = direction: negative = price below trend (potential buy), positive
-  = above trend (potential sell).
-- **Magnitude** = strength: `|score| ≥ 1.5` (the Pine Script threshold) is
-  rendered red and bold; `|score| ≥ 2` adds a red background.
-- **Yellow background** = BBW compression firing — Bollinger Band Width sits
-  below its lower band; pairs with the script's "yellow bar" condition.
-
-## Calculations (Pine Script → Sheets)
-
-| Pine                         | Sheets                                                   |
-|------------------------------|----------------------------------------------------------|
-| `_src = close`               | column 2 of `GOOGLEFINANCE(ticker,"close",start,today)`  |
-| `_sma = ema(_src, 20)`       | `SCAN(0, closes, LAMBDA(a,x, IF(a=0, x, a*(1-α)+x*α)))` |
-| `_rate = _src - _sma`        | element-wise array subtraction                           |
-| `_std = stdev(_rate, 1000)`  | `STDEV` over the last `STD_Lookback` values of `_rate`   |
-| `buy = _rate[1] <= -1.5σ`    | `INDEX(devSeries, n-1) <= -STD_Level * STD`              |
-| `sell = _rate[1] >=  1.5σ`   | `INDEX(devSeries, n-1) >=  STD_Level * STD`              |
-| `bbw < SMA(bbw)-2σ` (yellow) | `MAP`/`STDEV`/`AVERAGE` over a rolling BBW series        |
-
-## Notes / limitations
-
-- Source = `close` (not `hlc3` as in Pine) because `GOOGLEFINANCE` returns one
-  series per column. Adding high/low fetches is straightforward but doubles
-  the column count.
-- Heikin Ashi confirmation arrows (`long`/`short` in Pine) are not ported;
-  the raw `buy_signal` / `sell_signal` rows on Model expose the threshold
-  crossings directly.
-- GOOGLEFINANCE only supports daily / weekly history. Intraday timeframes
-  aren't available.
-- Live price (`Current Price`) is `GOOGLEFINANCE(symbol, "price")` and is
-  subject to its ~20 min delay.
+The `Settings` tab exposes the seven Pine parameters as named ranges
+(`MA_Period`, `STD_Lookback`, `STD_Level`, `BB_Length`, `BB_Mult`,
+`BB_Std`, `BB_Lookback`). Change values in column B, then Refresh All.
