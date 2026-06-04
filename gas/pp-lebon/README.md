@@ -9,8 +9,9 @@ user-defined list of tickers.
 - **Summary** — one row per ticker. Columns: Symbol, Score, Current Close,
   Current Price, then price bands at STD multiples −2 … +2.
 - **Model** — one column per ticker. All Pine-Script calculations
-  (EMA center, STD of deviation, STD-level price grid, BBW compression, buy/sell
-  signals) plus the GOOGLEFINANCE-spilled close history starting at row 40.
+  (EMA center, STD center, STD of deviation, STD-level price grid, BBW
+  compression, buy/sell signals) plus the GOOGLEFINANCE-spilled close history
+  starting at row 39.
 - **Settings** — named ranges for the Pine Script parameters
   (`MA_Period`, `STD_Lookback`, `STD_Level`, `BB_Length`, `BB_Mult`, `BB_Std`,
   `BB_Lookback`).
@@ -38,19 +39,24 @@ Reload the Sheet → a **PP-Lebon** menu appears via `onOpen`.
 ## Use
 
 1. **PP-Lebon → Setup Workbook** — builds Summary / Model / Settings tabs and
-   seeds `.INX` as the first ticker.
-2. **PP-Lebon → Add Ticker…** — enter `LYC`, `MP`, etc. A column is appended to
+   seeds `MSFT` as the first ticker.
+2. **PP-Lebon → Reset Workbook** — wipes the three tabs and rebuilds. Use after
+   pulling schema changes from this repo.
+3. **PP-Lebon → Add Ticker…** — enter `LYC`, `MP`, etc. A column is appended to
    Model and a row to Summary; GOOGLEFINANCE populates close history within
    ~30 s.
-3. **PP-Lebon → Remove Ticker…** — clears the Model column and deletes the
+4. **PP-Lebon → Rebuild Ticker…** — re-applies the latest formulas to an
+   existing ticker column, keeping its Start Date / Interval.
+5. **PP-Lebon → Remove Ticker…** — clears the Model column and deletes the
    Summary row.
-4. **PP-Lebon → Refresh** — calls `SpreadsheetApp.flush()`. GOOGLEFINANCE
+6. **PP-Lebon → Refresh** — calls `SpreadsheetApp.flush()`. GOOGLEFINANCE
    prices update on Google's own ~20 min cadence; this does not bypass that.
 
 ## Score interpretation
 
-- `Score = (Current Price − EMA Center) / STD` — signed # of standard
-  deviations from the EMA trend.
+- `Score = (Current Price − EMA Center − STD Center) / STD` — signed # of
+  standard deviations from the deviation-band center (Pine `_stdCenter`
+  added back to the EMA).
 - **Sign** = direction: negative = price below trend (potential buy), positive
   = above trend (potential sell).
 - **Magnitude** = strength: `|score| ≥ 1.5` (the Pine Script threshold) is

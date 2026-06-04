@@ -8,10 +8,11 @@ function setupWorkbook() {
   createModelSheet_(ss);
   createSummarySheet_(ss);
 
-  // Seed first ticker if Model has no ticker columns yet.
+  // Seed with MSFT — a known-good GOOGLEFINANCE symbol so the user sees data
+  // immediately. Replace via Remove Ticker → Add Ticker if desired.
   const model = ss.getSheetByName(SHEETS.MODEL);
   if (model.getRange(MODEL_ROWS.TICKER, 2).getValue() === '') {
-    addTicker('.INX');
+    addTicker('MSFT');
   }
 
   SpreadsheetApp.getActive().toast('Workbook ready.', 'PP-Lebon', 5);
