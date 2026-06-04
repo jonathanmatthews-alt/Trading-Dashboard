@@ -12,3 +12,6 @@ logs/
 .vercel
 # npm-generated lockfile when installing via npm (we ship pnpm-lock.yaml as canonical)
 package-lock.json
+# Apps Script (clasp): real .clasp.json holds a per-Sheet script id
+gas/**/.clasp.json
+.clasprc.json
